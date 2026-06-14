@@ -1,0 +1,29 @@
+# Local datasets and model artifacts
+data/*
+!data/README.md
+models/*
+!models/README.md
+*.onnx
+*.pt
+*.pth
+
+# Generated experiment outputs
+results/*
+!results/.gitkeep
+!results/README.md
+reports/generated/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

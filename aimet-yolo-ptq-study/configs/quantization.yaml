@@ -1,0 +1,64 @@
+defaults:
+  activation_bitwidth: 8
+  weight_bitwidth: 8
+  quant_scheme: post_training_tf_enhanced
+  rounding_mode: nearest
+  per_channel_quantization: true
+
+calibration:
+  sample_count: 1024
+  batch_size: 1
+  shuffle: true
+  seed: 20260614
+
+adaround:
+  sample_count: 256
+  num_iterations: 10000
+
+experiments:
+  fp32_onnx:
+    enabled: true
+    uses_aimet: false
+    description: FP32 ONNX baseline.
+
+  naive_onnx_int8:
+    enabled: true
+    uses_aimet: false
+    quantizer: onnxruntime.quantization
+    mode: static
+    description: Generic ONNX Runtime INT8 baseline without AIMET.
+
+  aimet_quantsim_ptq:
+    enabled: true
+    uses_aimet: true
+    features:
+      quantsim: true
+    description: AIMET QuantSim with calibration-derived encodings.
+
+  aimet_cle_ptq:
+    enabled: true
+    uses_aimet: true
+    features:
+      cross_layer_equalization: true
+      quantsim: true
+    description: AIMET CLE followed by QuantSim.
+
+  aimet_adaround_ptq:
+    enabled: true
+    uses_aimet: true
+    features:
+      adaround: true
+      quantsim: true
+    description: AIMET AdaRound followed by QuantSim.
+
+  aimet_autoquant:
+    enabled: true
+    uses_aimet: true
+    features:
+      autoquant: true
+    description: AIMET automated PTQ workflow.
+
+acceptance_criteria:
+  map_50_95_drop_percentage_points: 1.0
+  map_50_drop_percentage_points: 0.5
+  ap_small_drop_percentage_points: 2.0

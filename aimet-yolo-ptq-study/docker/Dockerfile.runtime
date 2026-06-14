@@ -1,0 +1,14 @@
+FROM artifacts.codelinaro.org/codelinaro-aimet/aimet-dev:latest.onnx-gpu
+
+WORKDIR /tmp/aimet-yolo-setup
+
+COPY requirements.txt /tmp/aimet-yolo-setup/requirements.txt
+
+RUN python3 -m pip install --no-cache-dir --root-user-action=ignore \
+      https://github.com/quic/aimet/releases/download/2.2.0/aimet_onnx-2.2.0+cu118-cp310-cp310-manylinux_2_34_x86_64.whl \
+      -f https://download.pytorch.org/whl/torch_stable.html \
+    && python3 -m pip install --no-cache-dir --root-user-action=ignore \
+      -r /tmp/aimet-yolo-setup/requirements.txt \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python
+
+WORKDIR /workspace

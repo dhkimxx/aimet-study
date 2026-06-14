@@ -1,0 +1,61 @@
+# AIMET experiment artifacts
+**/data/*
+!**/data/README.md
+**/models/*
+!**/models/README.md
+**/results/*
+!**/results/README.md
+!**/results/.gitkeep
+**/runs/
+**/artifacts/
+**/outputs/
+**/checkpoints/
+
+# Model and dataset files
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.engine
+*.tflite
+*.dlc
+*.bin
+*.npy
+*.npz
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# AIMET/generated quantization files
+*.encodings
+*.cache
+*.pb
+*.pbtxt
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Experiment trackers and notebooks
+wandb/
+mlruns/
+.ipynb_checkpoints/
+
+# Logs and local env
+*.log
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

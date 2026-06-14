@@ -1,0 +1,61 @@
+project:
+  name: aimet-yolo-ptq-study
+  objective: >
+    Compare YOLO ONNX PTQ behavior across no-AIMET and AIMET-based workflows.
+
+model:
+  family: ultralytics-yolo
+  target_version: yolo26
+  variant: yolo26n
+  format: onnx
+  source_checkpoint: yolo26n.pt
+  path: models/yolo26n_pretrained.onnx
+  input_name: images
+  input_shape: [1, 3, 640, 640]
+  output_postprocess: external
+
+dataset:
+  name: coco2017-val
+  split: val
+  root_dir: data/coco
+  image_dir: data/coco/val2017
+  annotation_file: data/coco/annotations/instances_val2017.json
+  dataset_yaml: data/coco/coco_val2017.yaml
+  sample_count: 5000
+  calibration_count: 1024
+
+metrics:
+  primary:
+    - box_map_50_95
+  secondary:
+    - box_map_50
+    - box_map_75
+    - ap_small
+    - ap_medium
+    - ap_large
+    - precision
+    - recall
+  latency:
+    - model_only
+    - end_to_end
+  memory:
+    - peak_gpu_memory_mb
+    - peak_host_memory_mb
+
+benchmark:
+  batch_size: 1
+  warmup_runs: 50
+  measured_runs: 200
+  report_percentiles: [50, 90, 95]
+  providers:
+    - CUDAExecutionProvider
+    - CPUExecutionProvider
+
+paths:
+  results_dir: results
+  reports_dir: reports
+  encodings_dir: results/encodings
+  exported_models_dir: results/models
+  metrics_csv: results/metrics.csv
+  latency_csv: results/latency.csv
+  memory_csv: results/memory.csv
