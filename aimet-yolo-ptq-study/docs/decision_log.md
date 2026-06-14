@@ -1,17 +1,17 @@
-# Decision Log
+# 의사결정 로그
 
 ## 2026-06-14
 
-| Topic | Decision | Rationale |
+| 주제 | 결정 | 이유 |
 | --- | --- | --- |
-| Optimization priority | Accuracy first, then latency, then memory | The study should avoid over-optimizing speed at the cost of losing mAP. |
-| Deployment target | PC GPU first, Android phone later | PC GPU is the development baseline; Android constraints should shape export choices. |
-| Model | Latest Ultralytics YOLO pretrained ONNX, starting with YOLO26 | The current study is framework-neutral and ONNX-oriented. |
-| Dataset | COCO 2017 val 5k | Standard, reproducible detection benchmark. |
-| Accuracy metric | COCO box mAP50-95 | Primary COCO detection metric and sensitive to localization quality. |
-| Latency metrics | Model-only and end-to-end | Separates quantized model speed from preprocessing/postprocessing cost. |
-| Input shape | 1x3x640x640 | Standard YOLO comparison point. |
-| AIMET scope | PTQ only | Keeps phase 1 focused on AIMET quantization tools without training. |
-| Output format | Reproducible experiment project | Enables reuse when a custom dataset is selected later. |
-| Runtime | WSL2 Ubuntu + NVIDIA GPU + Docker | Aligns with AIMET Linux/GPU assumptions while staying practical on Windows. |
-| Docker strategy | Official/prebuilt AIMET image first | Minimizes setup time and lets the study focus on AIMET behavior. |
+| 최적화 우선순위 | 정확도 유지, 레이턴시 감소, 메모리 감소 순서 | mAP 손실을 크게 내면서 속도만 올리는 방향을 피합니다. |
+| 배포 목표 | 먼저 PC GPU, 이후 Android phone | PC GPU를 개발 기준선으로 삼고, Android 제약은 export 선택에 반영합니다. |
+| 모델 | 최신 Ultralytics YOLO pretrained ONNX 계열, 시작점은 YOLO26 | 현재 스터디는 프레임워크보다 ONNX 중심의 비교에 초점을 둡니다. |
+| 데이터셋 | COCO 2017 val 5천 장 | 표준적이고 재현 가능한 detection benchmark입니다. |
+| 정확도 지표 | COCO box mAP50-95 | COCO detection의 대표 지표이며 localization 품질에 민감합니다. |
+| 레이턴시 지표 | model-only와 end-to-end 모두 측정 | 양자화된 모델 자체 속도와 전처리/후처리 비용을 분리해서 봅니다. |
+| 입력 형태 | 1x3x640x640 | YOLO 비교에 흔히 쓰는 기준점입니다. |
+| AIMET 범위 | PTQ만 수행 | 1단계는 학습 없이 AIMET 양자화 도구를 이해하는 데 집중합니다. |
+| 산출물 형태 | 재현 가능한 실험 프로젝트 | 나중에 custom dataset을 정했을 때 그대로 재사용할 수 있습니다. |
+| 런타임 | WSL2 Ubuntu + NVIDIA GPU + Docker | AIMET의 Linux/GPU 전제를 맞추면서 Windows 환경에서 실용적으로 실행합니다. |
+| Docker 전략 | 공식/prebuilt AIMET 이미지 우선 | 설치 시간을 줄이고 AIMET 동작 이해에 집중합니다. |

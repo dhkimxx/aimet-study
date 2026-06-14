@@ -1,12 +1,12 @@
-# Data Directory
+# 데이터 디렉터리
 
-COCO assets are generated here by:
+COCO 관련 자산은 다음 명령으로 생성합니다.
 
 ```bash
 python scripts/01_prepare_coco.py --download
 ```
 
-Expected result:
+예상 결과:
 
 ```text
 data/coco/
@@ -19,4 +19,4 @@ data/coco/
   calibration_images.txt
 ```
 
-The downloaded image and annotation files are intentionally ignored by git.
+다운로드한 이미지와 annotation 파일은 용량이 크므로 의도적으로 git에서 제외합니다.
