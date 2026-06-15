@@ -7,11 +7,17 @@ import json
 
 import _bootstrap  # noqa: F401
 
+from aimet_yolo_study.artifacts import calibration_suffix
 from aimet_yolo_study.config import load_experiment_config, resolve_project_path
 from aimet_yolo_study.metrics import ACCURACY_FIELDNAMES, jsonable
 from aimet_yolo_study.ort_quant import ImageCalibrationDataReader
 from aimet_yolo_study.records import append_csv_row
-from aimet_yolo_study.ultralytics_eval import build_accuracy_row, run_ultralytics_val
+from aimet_yolo_study.ultralytics_eval import (
+    build_accuracy_row,
+    eval_run_name,
+    metrics_csv_for_eval,
+    run_ultralytics_val,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,6 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--imgsz", type=int, default=None)
     parser.add_argument("--calibration-samples", type=int, default=None)
+    parser.add_argument("--eval-samples", type=int, default=None, help="Evaluate only a reproducible image subset.")
+    parser.add_argument("--eval-seed", type=int, default=20260614)
     parser.add_argument("--force", action="store_true", help="Recreate the quantized ONNX model.")
     parser.add_argument("--name", default="naive_onnx_int8")
     return parser.parse_args()
@@ -73,11 +81,10 @@ def main() -> int:
     fp32_model = resolve_project_path(model_config["path"])
     dataset_yaml = resolve_project_path(dataset_config["dataset_yaml"])
     calibration_manifest = resolve_project_path(dataset_config["root_dir"]) / "calibration_images.txt"
-    metrics_csv = resolve_project_path(paths_config["metrics_csv"])
+    metrics_csv = metrics_csv_for_eval(resolve_project_path(paths_config["metrics_csv"]), args.eval_samples)
     results_dir = resolve_project_path(paths_config["results_dir"])
-    exported_models_dir = resolve_project_path(paths_config["exported_models_dir"])
-    int8_model = exported_models_dir / f"{fp32_model.stem}.naive_int8.onnx"
-    output_dir = results_dir / "ultralytics" / args.name
+    run_name = eval_run_name(args.name, args.eval_samples)
+    output_dir = results_dir / "ultralytics" / run_name
 
     for required in [fp32_model, dataset_yaml, calibration_manifest]:
         if not required.exists():
@@ -85,7 +92,12 @@ def main() -> int:
 
     image_size = args.imgsz or int(model_config["input_shape"][-1])
     batch_size = args.batch or int(benchmark_config["batch_size"])
-    calibration_samples = args.calibration_samples or int(dataset_config["calibration_count"])
+    default_calibration_samples = int(dataset_config["calibration_count"])
+    calibration_samples = args.calibration_samples or default_calibration_samples
+    exported_models_dir = resolve_project_path(paths_config["exported_models_dir"])
+    int8_model = exported_models_dir / (
+        f"{fp32_model.stem}.naive_int8{calibration_suffix(calibration_samples, default_calibration_samples)}.onnx"
+    )
 
     quantize_static_onnx(
         fp32_model=fp32_model,
@@ -105,17 +117,21 @@ def main() -> int:
         batch_size=batch_size,
         device=args.device,
         output_dir=output_dir,
+        eval_samples=args.eval_samples,
+        eval_seed=args.eval_seed,
     )
-    row = build_accuracy_row("B", "naive_onnx_int8", False, int8_model, metrics)
+    row = build_accuracy_row("B", run_name, False, int8_model, metrics)
     append_csv_row(metrics_csv, ACCURACY_FIELDNAMES, row)
 
-    details_path = output_dir / "metrics_naive_onnx_int8.json"
+    details_path = output_dir / f"metrics_{run_name}.json"
     details_path.parent.mkdir(parents=True, exist_ok=True)
     details = {
         "row": row,
         "results_dict": jsonable(getattr(metrics, "results_dict", {})),
         "quantized_model": str(int8_model),
         "calibration_samples": calibration_samples,
+        "eval_samples": args.eval_samples,
+        "eval_seed": args.eval_seed,
     }
     with details_path.open("w", encoding="utf-8") as handle:
         json.dump(details, handle, indent=2)

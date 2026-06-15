@@ -25,6 +25,18 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 | E | AIMET AdaRound + QuantSim | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
 | F | AIMET AutoQuant | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 | 예정 |
 
+## 빠른 검증 결과
+
+아래 결과는 COCO 전체가 아니라 `--eval-samples 20`으로 뽑은 20장 샘플 기준입니다. 절대 성능 판단용이 아니라 파이프라인 검증과 큰 방향성 확인용입니다.
+
+| ID | 실험 | 설정 | mAP50-95 | mAP50 | mAP75 | 비고 |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| A | FP32 ONNX | sample20 | 0.5575 | 0.6778 | 0.6093 | 샘플 기준선 |
+| B | no-AIMET naive ONNX INT8 | calib64, sample20 | 0.0000 | 0.0000 | 0.0000 | 단순 INT8 양자화 실패 재현 |
+| C | AIMET QuantSim PTQ | calib64, sample20 | 0.5575 | 0.6778 | 0.6093 | FP32와 거의 동일 |
+| D | AIMET CLE + QuantSim | calib64, sample20 | 0.5575 | 0.6778 | 0.6093 | 현재 모델에서는 QuantSim과 차이 거의 없음 |
+| E | AIMET AdaRound + QuantSim | calib64, adar8, iter50, sample20 | 0.5588 | 0.6783 | 0.6116 | smoke 설정이므로 정식 AdaRound 결과는 아님 |
+
 ## 레이턴시 결과
 
 | ID | 실험 | model-only 평균 ms | model-only p95 ms | end-to-end 평균 ms | end-to-end p95 ms |
@@ -61,4 +73,6 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 
 - FP32 ONNX는 COCO 기준 정상 mAP를 확인했습니다.
 - no-AIMET naive INT8은 현재 기준으로 mAP가 0으로 떨어져, 단순 양자화가 YOLO 후처리와 잘 맞지 않는 가능성이 큽니다.
-- AIMET QuantSim 이후 실험은 full COCO 평가 시간을 줄이기 위한 빠른 검증 모드를 추가한 뒤 다시 진행하는 편이 좋습니다.
+- AIMET QuantSim은 20장 빠른 검증에서 FP32 수준의 정확도를 유지했습니다.
+- CLE는 이 샘플과 현재 모델에서는 QuantSim 단독과 거의 같은 결과를 냈습니다.
+- AdaRound는 작은 smoke 설정으로 API와 export 경로를 확인했습니다. 정식 비교는 기본 또는 충분한 iteration으로 다시 평가해야 합니다.

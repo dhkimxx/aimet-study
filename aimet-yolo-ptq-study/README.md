@@ -151,6 +151,21 @@ python scripts/05_aimet_cle_ptq.py --device 0
 python scripts/06_aimet_adaround_ptq.py --device 0
 ```
 
+전체 COCO 평가 전에 빠른 검증을 먼저 돌릴 수 있습니다. `--eval-samples`를 주면 지정한 개수의 이미지만 재현 가능한 샘플로 평가하고, 결과는 `results/metrics_quick.csv`에 기록합니다.
+
+```bash
+python scripts/02_eval_fp32_onnx.py --device 0 --eval-samples 100
+python scripts/03_eval_naive_int8_onnx.py --device 0 --calibration-samples 64 --eval-samples 100
+python scripts/04_aimet_quantsim_ptq.py --device 0 --calibration-samples 64 --eval-samples 100
+python scripts/05_aimet_cle_ptq.py --device 0 --calibration-samples 64 --eval-samples 100
+```
+
+AdaRound는 기본 설정이 오래 걸립니다. 먼저 API와 export 경로만 확인할 때는 작은 smoke 설정을 사용합니다.
+
+```bash
+python scripts/06_aimet_adaround_ptq.py --device 0 --calibration-samples 64 --adaround-samples 8 --adaround-iterations 50 --eval-samples 100
+```
+
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.
 
 ```bash

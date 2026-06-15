@@ -7,12 +7,17 @@ import json
 
 import _bootstrap  # noqa: F401
 
-from aimet_yolo_study.aimet_quantsim import export_quantsim_model
-from aimet_yolo_study.aimet_utils import calibration_input_dicts
+from aimet_yolo_study.aimet_quantsim import export_adaround_quantsim_model
+from aimet_yolo_study.artifacts import adaround_suffix
 from aimet_yolo_study.config import load_experiment_config, resolve_project_path
 from aimet_yolo_study.metrics import ACCURACY_FIELDNAMES, jsonable
 from aimet_yolo_study.records import append_csv_row
-from aimet_yolo_study.ultralytics_eval import build_accuracy_row, run_ultralytics_val
+from aimet_yolo_study.ultralytics_eval import (
+    build_accuracy_row,
+    eval_run_name,
+    metrics_csv_for_eval,
+    run_ultralytics_val,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,6 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--calibration-samples", type=int, default=None)
     parser.add_argument("--adaround-samples", type=int, default=None)
     parser.add_argument("--adaround-iterations", type=int, default=None)
+    parser.add_argument("--eval-samples", type=int, default=None, help="Evaluate only a reproducible image subset.")
+    parser.add_argument("--eval-seed", type=int, default=20260614)
     parser.add_argument("--name", default="aimet_adaround_ptq")
     parser.add_argument("--force", action="store_true", help="Overwrite exported AIMET artifacts.")
     return parser.parse_args()
@@ -32,26 +39,6 @@ def parse_args() -> argparse.Namespace:
 def require_file(path, hint: str) -> None:
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. {hint}")
-
-
-def adaround_transform_factory(manifest, input_name: str, image_size: int, sample_count: int, num_iterations: int):
-    def apply_adaround(sim) -> None:
-        try:
-            from aimet_onnx.adaround.adaround_weight import Adaround
-        except ImportError as exc:
-            raise RuntimeError("Missing AIMET ONNX AdaRound APIs. Run inside the AIMET ONNX Docker container.") from exc
-
-        inputs = list(
-            calibration_input_dicts(
-                manifest_path=manifest,
-                input_name=input_name,
-                image_size=image_size,
-                sample_count=sample_count,
-            )
-        )
-        Adaround.apply_adaround(sim, inputs=inputs, num_iterations=num_iterations)
-
-    return apply_adaround
 
 
 def main() -> int:
@@ -66,10 +53,11 @@ def main() -> int:
     fp32_model = resolve_project_path(model_config["path"])
     dataset_yaml = resolve_project_path(dataset_config["dataset_yaml"])
     calibration_manifest = resolve_project_path(dataset_config["root_dir"]) / "calibration_images.txt"
-    metrics_csv = resolve_project_path(paths_config["metrics_csv"])
+    metrics_csv = metrics_csv_for_eval(resolve_project_path(paths_config["metrics_csv"]), args.eval_samples)
     results_dir = resolve_project_path(paths_config["results_dir"])
     exported_models_dir = resolve_project_path(paths_config["exported_models_dir"])
-    output_dir = results_dir / "ultralytics" / args.name
+    run_name = eval_run_name(args.name, args.eval_samples)
+    output_dir = results_dir / "ultralytics" / run_name
 
     require_file(fp32_model, "Run: python scripts/01_prepare_yolo_onnx.py --export")
     require_file(dataset_yaml, "Run: python scripts/01_prepare_coco.py --download")
@@ -77,12 +65,23 @@ def main() -> int:
 
     image_size = args.imgsz or int(model_config["input_shape"][-1])
     batch_size = args.batch or int(benchmark_config["batch_size"])
-    calibration_samples = args.calibration_samples or int(dataset_config["calibration_count"])
-    adaround_samples = args.adaround_samples or int(quant_config["adaround"]["sample_count"])
-    adaround_iterations = args.adaround_iterations or int(quant_config["adaround"]["num_iterations"])
-    filename_prefix = f"{fp32_model.stem}.aimet_adaround_int8"
+    default_calibration_samples = int(dataset_config["calibration_count"])
+    default_adaround_samples = int(quant_config["adaround"]["sample_count"])
+    default_adaround_iterations = int(quant_config["adaround"]["num_iterations"])
+    calibration_samples = args.calibration_samples or default_calibration_samples
+    adaround_samples = args.adaround_samples or default_adaround_samples
+    adaround_iterations = args.adaround_iterations or default_adaround_iterations
+    artifact_suffix = adaround_suffix(
+        calibration_samples,
+        default_calibration_samples,
+        adaround_samples,
+        default_adaround_samples,
+        adaround_iterations,
+        default_adaround_iterations,
+    )
+    filename_prefix = f"{fp32_model.stem}.aimet_adaround_int8{artifact_suffix}"
 
-    aimet_model, encodings = export_quantsim_model(
+    aimet_model, encodings, adaround_encodings = export_adaround_quantsim_model(
         fp32_model=fp32_model,
         export_dir=exported_models_dir,
         filename_prefix=filename_prefix,
@@ -92,15 +91,10 @@ def main() -> int:
         manifest=calibration_manifest,
         quant_config=quant_config,
         calibration_samples=calibration_samples,
+        adaround_samples=adaround_samples,
+        adaround_iterations=adaround_iterations,
         device=args.device,
         force=args.force,
-        sim_transform=adaround_transform_factory(
-            manifest=calibration_manifest,
-            input_name=model_config["input_name"],
-            image_size=image_size,
-            sample_count=adaround_samples,
-            num_iterations=adaround_iterations,
-        ),
     )
 
     metrics = run_ultralytics_val(
@@ -111,20 +105,25 @@ def main() -> int:
         batch_size=batch_size,
         device=args.device,
         output_dir=output_dir,
+        eval_samples=args.eval_samples,
+        eval_seed=args.eval_seed,
     )
-    row = build_accuracy_row("E", "aimet_adaround_ptq", True, aimet_model, metrics)
+    row = build_accuracy_row("E", run_name, True, aimet_model, metrics)
     append_csv_row(metrics_csv, ACCURACY_FIELDNAMES, row)
 
-    details_path = output_dir / "metrics_aimet_adaround_ptq.json"
+    details_path = output_dir / f"metrics_{run_name}.json"
     details_path.parent.mkdir(parents=True, exist_ok=True)
     details = {
         "row": row,
         "results_dict": jsonable(getattr(metrics, "results_dict", {})),
         "aimet_model": str(aimet_model),
         "encodings": str(encodings),
+        "adaround_encodings": str(adaround_encodings),
         "calibration_samples": calibration_samples,
         "adaround_samples": adaround_samples,
         "adaround_iterations": adaround_iterations,
+        "eval_samples": args.eval_samples,
+        "eval_seed": args.eval_seed,
     }
     with details_path.open("w", encoding="utf-8") as handle:
         json.dump(details, handle, indent=2)

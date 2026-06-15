@@ -10,7 +10,12 @@ import _bootstrap  # noqa: F401
 from aimet_yolo_study.config import load_experiment_config, resolve_project_path
 from aimet_yolo_study.metrics import ACCURACY_FIELDNAMES, jsonable
 from aimet_yolo_study.records import append_csv_row
-from aimet_yolo_study.ultralytics_eval import build_accuracy_row, run_ultralytics_val
+from aimet_yolo_study.ultralytics_eval import (
+    build_accuracy_row,
+    eval_run_name,
+    metrics_csv_for_eval,
+    run_ultralytics_val,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,6 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="0", help="Ultralytics device value, for example 0 or cpu.")
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--imgsz", type=int, default=None)
+    parser.add_argument("--eval-samples", type=int, default=None, help="Evaluate only a reproducible image subset.")
+    parser.add_argument("--eval-seed", type=int, default=20260614)
     parser.add_argument("--name", default="fp32_onnx")
     return parser.parse_args()
 
@@ -38,9 +45,10 @@ def main() -> int:
 
     model_path = resolve_project_path(model_config["path"])
     dataset_yaml = resolve_project_path(dataset_config["dataset_yaml"])
-    metrics_csv = resolve_project_path(paths_config["metrics_csv"])
+    metrics_csv = metrics_csv_for_eval(resolve_project_path(paths_config["metrics_csv"]), args.eval_samples)
     results_dir = resolve_project_path(paths_config["results_dir"])
-    output_dir = results_dir / "ultralytics" / args.name
+    run_name = eval_run_name(args.name, args.eval_samples)
+    output_dir = results_dir / "ultralytics" / run_name
 
     require_file(model_path, "Run: python scripts/01_prepare_yolo_onnx.py --export")
     require_file(dataset_yaml, "Run: python scripts/01_prepare_coco.py --download")
@@ -55,17 +63,21 @@ def main() -> int:
         batch_size=batch_size,
         device=args.device,
         output_dir=output_dir,
+        eval_samples=args.eval_samples,
+        eval_seed=args.eval_seed,
     )
 
-    row = build_accuracy_row("A", "fp32_onnx", False, model_path, metrics)
+    row = build_accuracy_row("A", run_name, False, model_path, metrics)
     append_csv_row(metrics_csv, ACCURACY_FIELDNAMES, row)
 
-    details_path = output_dir / "metrics_fp32_onnx.json"
+    details_path = output_dir / f"metrics_{run_name}.json"
     details_path.parent.mkdir(parents=True, exist_ok=True)
     details = {
         "row": row,
         "results_dict": jsonable(getattr(metrics, "results_dict", {})),
         "output_dir": str(output_dir),
+        "eval_samples": args.eval_samples,
+        "eval_seed": args.eval_seed,
     }
     with details_path.open("w", encoding="utf-8") as handle:
         json.dump(details, handle, indent=2)
