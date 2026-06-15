@@ -29,6 +29,8 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 
 아래 결과는 COCO 전체가 아니라 `--eval-samples 20`으로 뽑은 20장 샘플 기준입니다. 절대 성능 판단용이 아니라 파이프라인 검증과 큰 방향성 확인용입니다.
 
+상세 실행 조건과 해석은 `reports/quick_ptq_results.md`에 별도로 정리했습니다.
+
 | ID | 실험 | 설정 | mAP50-95 | mAP50 | mAP75 | 비고 |
 | --- | --- | --- | ---: | ---: | ---: | --- |
 | A | FP32 ONNX | sample20 | 0.5575 | 0.6778 | 0.6093 | 샘플 기준선 |
