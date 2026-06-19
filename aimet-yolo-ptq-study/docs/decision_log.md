@@ -6,6 +6,8 @@
 | --- | --- | --- |
 | 기본 런타임 | WSL2 Ubuntu native + `uv` + Python 3.10 venv | 현재 작업 환경이 이미 WSL2 Ubuntu 내부이므로 추가 가상화 계층 없이 직접 실험합니다. |
 | AIMET 설치 | AIMET ONNX 2.2.0 GPU wheel을 `pyproject.toml` direct URL dependency로 관리 | AIMET 2.2.0 ONNX GPU package가 Python 3.10 wheel로 배포되어 있어 venv 재현성을 명시합니다. |
+| AIMET 평가 산출물 | ONNX Runtime으로 평가할 AIMET 모델은 표준 QDQ ONNX여야 함 | AIMET ONNX 2.2.0 public export는 ONNX에서 quantization 노드를 제거하고 `.encodings`를 별도로 저장하므로, QDQ 없는 ONNX는 ORT/Ultralytics에서 INT8로 실행되지 않습니다. |
+| YOLO postprocess 양자화 | detection postprocess의 비-Conv 텐서와 최종 `output0`은 QDQ 변환에서 제외 | postprocess까지 QDQ를 넣은 첫 시도는 sample20 기준 mAP가 0으로 떨어졌고, postprocess 제외 후 실제 QDQ 모델이 정상 mAP를 냈습니다. |
 
 ## 2026-06-14
 

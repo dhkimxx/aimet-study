@@ -151,6 +151,12 @@ AdaRound는 기본 설정이 오래 걸립니다. 먼저 API와 export 경로만
 scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --calibration-samples 64 --adaround-samples 8 --adaround-iterations 50 --eval-samples 100
 ```
 
+AIMET ONNX 2.2.0의 public export는 `.encodings` 파일을 별도로 저장하고 ONNX에서 AIMET quantization 노드를 제거합니다. ONNX Runtime/Ultralytics 평가용 산출물은 반드시 `QuantizeLinear`/`DequantizeLinear` 노드가 들어 있는지 확인합니다.
+
+```bash
+scripts/run_native.sh python -c "import onnx; from collections import Counter; m=onnx.load('results/models/yolo26n_pretrained.aimet_quantsim_int8_calib64.onnx'); c=Counter(n.op_type for n in m.graph.node); print(c['QuantizeLinear'], c['DequantizeLinear'])"
+```
+
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.
 
 ```bash
