@@ -45,7 +45,7 @@ def cle_transform_factory(equalized_model_path):
             import onnx
             from aimet_onnx.cross_layer_equalization import equalize_model
         except ImportError as exc:
-            raise RuntimeError("Missing AIMET ONNX CLE APIs. Run inside the AIMET ONNX Docker container.") from exc
+            raise RuntimeError("Missing AIMET ONNX CLE APIs. Install the native uv environment with: uv sync") from exc
 
         equalize_model(model)
         equalized_model_path.parent.mkdir(parents=True, exist_ok=True)

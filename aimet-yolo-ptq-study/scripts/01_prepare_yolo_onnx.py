@@ -27,7 +27,7 @@ def export_onnx(source_checkpoint: str, output_path: Path, image_size: int, opse
     try:
         from ultralytics import YOLO
     except ImportError as exc:
-        raise RuntimeError("Missing ultralytics. Install project dependencies with: python -m pip install -r requirements.txt") from exc
+        raise RuntimeError("Missing ultralytics. Install project dependencies with: uv sync") from exc
 
     model = YOLO(source_checkpoint)
     export_kwargs = {

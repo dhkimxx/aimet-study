@@ -1,15 +1,15 @@
 # 환경 노트
 
-## Host 구성
+## 기본 실행 구조
 
-예상 실행 구조:
+현재 기본 환경은 WSL2 Ubuntu 네이티브 venv입니다.
 
 ```text
 Windows host
   WSL2 Ubuntu
-    Docker Engine
-    NVIDIA Container Toolkit
-    AIMET official/prebuilt ONNX GPU container
+    uv-managed Python 3.10 .venv
+      AIMET ONNX 2.2.0 GPU wheel
+      ONNX Runtime CUDAExecutionProvider
 ```
 
 ## 필수 확인
@@ -18,46 +18,65 @@ Windows host
 
 ```bash
 nvidia-smi
-docker --version
-docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+uv --version
 ```
 
-그다음 AIMET 컨테이너를 시작합니다.
+`uv`가 없다면 먼저 설치합니다.
 
 ```bash
-bash docker/build_runtime_image.sh
-bash docker/run_aimet_onnx_gpu.sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-AIMET 컨테이너 내부에서는 다음 검증을 실행합니다.
+## Native uv 환경 생성
 
 ```bash
-python -m pip install -r requirements.txt
-python docker/verify_aimet.py
-python scripts/00_check_env.py
+cd /path/to/aimet-yolo-ptq-study
+bash scripts/setup_native_uv.sh
 ```
 
-## AIMET Image
+수동으로 진행할 때는 다음 명령을 사용합니다.
 
-`docker/run_aimet_onnx_gpu.sh`에서 사용하는 기본 런타임 이미지는 다음과 같습니다.
+```bash
+uv python install 3.10
+uv sync
+scripts/run_native.sh python scripts/00_check_env.py
+```
+
+`scripts/setup_native_uv.sh`는 sandbox나 제한된 WSL 환경에서도 동작하도록 `UV_CACHE_DIR`을 `.uv-cache`, `UV_PYTHON_INSTALL_DIR`을 `.uv-python`으로 잡습니다.
+
+실험 실행은 `scripts/run_native.sh python ...` 형식을 사용합니다. 이 wrapper는 `uv run --frozen`과 동일하게 lock을 따르며, ONNX Runtime CUDA provider가 필요한 CUDA 11 runtime library 경로를 `LD_LIBRARY_PATH`에 추가합니다.
+
+`pyproject.toml`은 다음 핵심 조건을 고정합니다.
+
+- Python `>=3.10,<3.11`
+- AIMET ONNX `2.2.0+cu118`
+- ONNX `1.16.*`
+- ONNX Runtime GPU
+- CUDA 11 runtime libraries from NVIDIA Python wheels
+- PyTorch `2.1.2+cu118`, torchvision `0.16.2+cu118`
+
+## AIMET Native Package
+
+사용하는 AIMET wheel은 다음입니다.
 
 ```text
-aimet-yolo-onnx-gpu:2.2.0
+https://github.com/quic/aimet/releases/download/2.2.0/aimet_onnx-2.2.0+cu118-cp310-cp310-manylinux_2_34_x86_64.whl
 ```
 
-이 이미지는 AIMET 문서에서 안내하는 prebuilt AIMET development image를 기반으로 빌드합니다.
+AIMET 2.2.0 ONNX GPU package는 Python 3.10과 CUDA 11.x 계열 wheel을 전제로 합니다. 시스템 Python이 3.12여도 `uv`가 `.venv`에 Python 3.10을 설치해서 사용합니다.
 
-```text
-artifacts.codelinaro.org/codelinaro-aimet/aimet-dev:latest.onnx-gpu
-```
+## 검증 기준
 
-prebuilt development image에는 ONNX/CUDA 의존성 스택이 들어 있습니다. AIMET 자체는 `docker/build_runtime_image.sh` 실행 중 공식 2.2.0 ONNX GPU wheel로 설치합니다.
+`scripts/00_check_env.py`는 다음을 확인합니다.
 
-이미지 태그를 바꿔야 할 때는 다음처럼 실행합니다.
+- Python executable과 version
+- `uv --version`
+- `numpy`, `onnx`, `onnxruntime`, `aimet_common`, `aimet_onnx`, `ultralytics` 등 import
+- ONNX Runtime provider 목록
+- `nvidia-smi` 실행 결과
 
-```bash
-AIMET_IMAGE="<official-image>:<tag>" bash docker/run_aimet_onnx_gpu.sh
-```
+정상 GPU 환경이면 `onnxruntime_providers`에 `CUDAExecutionProvider`가 포함되어야 합니다.
 
 ## 버전 기록
 
@@ -67,16 +86,6 @@ AIMET_IMAGE="<official-image>:<tag>" bash docker/run_aimet_onnx_gpu.sh
 - ONNX Runtime version
 - ONNX version
 - CUDA-visible provider list
-- Docker image name and tag
 - GPU name and driver version
 - Model file hash
 - Dataset annotation file hash
-
-## 프로젝트 의존성
-
-공식 AIMET 이미지는 AIMET 실행에 필요한 기반을 제공합니다. 프로젝트의 `requirements.txt`는 스터디용 유틸리티를 추가합니다.
-
-- `ultralytics`: YOLO26 모델 export와 기준선 validation
-- `pycocotools`: COCO metric workflow
-- `PyYAML`: 프로젝트 config 읽기
-- `requests`, `tqdm`: 안정적인 다운로드와 진행률 표시

@@ -36,7 +36,7 @@ def export_quantsim_model(
         import onnx
         from aimet_onnx.quantsim import QuantizationSimModel
     except ImportError as exc:
-        raise RuntimeError("Missing AIMET ONNX. Run inside the configured AIMET ONNX Docker container.") from exc
+        raise RuntimeError("Missing AIMET ONNX. Install the native uv environment with: uv sync") from exc
 
     model = onnx.load(str(fp32_model))
     if model_transform is not None:
@@ -100,7 +100,7 @@ def export_adaround_quantsim_model(
         from aimet_onnx.adaround.adaround_weight import Adaround, AdaroundParameters
         from aimet_onnx.quantsim import QuantizationSimModel
     except ImportError as exc:
-        raise RuntimeError("Missing AIMET ONNX. Run inside the configured AIMET ONNX Docker container.") from exc
+        raise RuntimeError("Missing AIMET ONNX. Install the native uv environment with: uv sync") from exc
 
     export_dir.mkdir(parents=True, exist_ok=True)
     model = onnx.load(str(fp32_model))

@@ -154,7 +154,7 @@ def run_ultralytics_val(
         from ultralytics import YOLO
     except ImportError as exc:
         raise RuntimeError(
-            "Missing ultralytics. Install dependencies with: python -m pip install -r requirements.txt"
+            "Missing ultralytics. Install dependencies with: uv sync"
         ) from exc
 
     effective_dataset_yaml = dataset_yaml
