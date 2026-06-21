@@ -144,6 +144,24 @@ sample500에서는 세 후보만 재평가했다.
 
 ORT CUDA 기준으로 현재 QDQ 모델은 FP32보다 느리다. 16비트 QDQ 모델은 ORT가 817개의 Memcpy node를 추가했고 model-only latency가 100ms 이상으로 증가했다. 따라서 16비트 결과는 정확도 원인 분석에는 유용하지만 배포 latency 후보로 해석하면 안 된다.
 
+## Figures
+
+![Full COCO accuracy](figures/full_accuracy.svg)
+
+Figure 1. Full COCO val mAP50-95. Naive INT8 collapses to zero, while AIMET A8W8 QDQ keeps most of the FP32 accuracy. A16W16 is closest to FP32 but is a diagnostic QDQ model, not a deployment artifact.
+
+![Accuracy and model-only latency](figures/accuracy_latency_pareto.svg)
+
+Figure 2. Accuracy-latency relation on RTX 3070 WSL2 ORT CUDA. Current QDQ models do not form a faster deployment point; A8W8 is slower than FP32 and 16-bit QDQ is much slower.
+
+![Activation QDQ sensitivity](figures/activation_sensitivity.svg)
+
+Figure 3. Sample100 activation sensitivity as mAP50-95 delta over A8W8. Removing activation QDQ recovers most of the loss, and the A16W8 reference lands at nearly the same level.
+
+![Conv weight QDQ vs storage](figures/qdq_storage_coverage.svg)
+
+Figure 4. Conv weight QDQ coverage and initializer storage are different quantities. AIMET QDQ models route Conv weights through QDQ but keep Conv weight storage as FP32, so deployment efficiency must be evaluated separately.
+
 ## 논의
 
 Naive INT8이 mAP 0으로 붕괴한 원인은 단순히 8비트라서가 아니라 양자화 범위가 다르기 때문이다. Naive 모델은 graph output과 postprocess까지 양자화하고 weight storage까지 int8로 접는다. 반면 AIMET QDQ 모델은 postprocess와 최종 output을 float로 유지하고 Conv weight는 QDQ 경로를 거치지만 initializer storage는 FP32다.
@@ -185,6 +203,7 @@ scripts/run_native.sh python scripts/09_quantization_coverage.py
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant all_activations --force
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 500 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id C --experiment-name aimet_quantsim_a8w8_qdq_latency --model results/models/yolo26n_pretrained.aimet_quantsim_int8_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
+scripts/run_native.sh python scripts/11_generate_report_figures.py
 ```
 
 ## 최종 리포트까지 남은 작업

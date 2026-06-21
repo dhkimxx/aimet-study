@@ -248,4 +248,3 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 3. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
 4. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
 5. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.
-6. 정확도-레이턴시 Pareto와 activation sensitivity figure를 생성합니다.

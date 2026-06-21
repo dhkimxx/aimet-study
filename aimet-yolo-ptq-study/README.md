@@ -227,6 +227,12 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id A -
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id B --experiment-name naive_onnx_int8 --model results/models/yolo26n_pretrained.naive_int8.onnx --device 0
 ```
 
+리포트 figure는 기존 CSV 결과에서 재생성합니다. 산출물은 `reports/figures/`에 저장됩니다.
+
+```bash
+scripts/run_native.sh python scripts/11_generate_report_figures.py
+```
+
 ## 참고 자료
 
 - AIMET 설치 문서: https://quic.github.io/aimet-pages/releases/2.2.0/install/index.html

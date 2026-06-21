@@ -81,6 +81,8 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 | `results/metrics_quick.csv` | quick accuracy 원천 데이터 |
 | `results/quantization_coverage*.csv` | coverage 원천 데이터 |
 | `results/latency.csv` | latency 원천 데이터 |
+| `scripts/11_generate_report_figures.py` | report figure 재생성 |
+| `reports/figures/*.svg` | 논문형 리포트 figure 산출물 |
 
 ## 최종 원고 체크리스트
 
@@ -89,6 +91,6 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 - [x] latency 표와 측정 조건 고정
 - [x] QDQ coverage 표
 - [x] head sensitivity 확대 평가
-- [ ] activation sensitivity figure
+- [x] activation sensitivity figure
 - [x] deployment artifact 한계 명시
 - [x] 재현 명령과 환경 해시 정리

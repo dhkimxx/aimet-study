@@ -120,6 +120,15 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 
 해석: 현재 ONNX Runtime CUDA에서 QDQ accuracy-eval 모델은 FP32보다 빠르지 않습니다. 특히 16비트 QDQ는 정확도 회복에는 유용하지만 latency가 100ms대로 올라가므로 배포 후보가 아닙니다. 반대로 activation QDQ를 제거하고 weight QDQ만 남기면 latency가 FP32에 가까워져, 정확도 손실과 runtime overhead 모두 activation QDQ가 핵심 병목임을 뒷받침합니다.
 
+## 그림 산출물
+
+논문형 리포트 figure는 `scripts/11_generate_report_figures.py`로 기존 CSV에서 재생성합니다.
+
+- `reports/figures/full_accuracy.svg`: full COCO mAP50-95 비교
+- `reports/figures/accuracy_latency_pareto.svg`: 정확도와 model-only latency 관계
+- `reports/figures/activation_sensitivity.svg`: activation QDQ 제거 민감도
+- `reports/figures/qdq_storage_coverage.svg`: Conv weight QDQ와 INT storage 차이
+
 ## 메모리 결과
 
 | ID | 실험 | peak GPU MB | peak host MB |

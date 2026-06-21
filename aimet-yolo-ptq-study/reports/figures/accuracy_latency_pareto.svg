@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="500" viewBox="0 0 960 500" role="img">
+
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #1f252b; }
+    .title { font-size: 22px; font-weight: 700; }
+    .subtitle { font-size: 13px; fill: #53606a; }
+    .axis { font-size: 12px; fill: #53606a; }
+    .label { font-size: 13px; }
+    .value { font-size: 12px; font-weight: 700; }
+    .grid { stroke: #d9dee3; stroke-width: 1; }
+    .axis-line { stroke: #6b747c; stroke-width: 1.2; }
+  </style>
+<rect width="960" height="500" fill="#ffffff"/>
+<text x="40" y="36" class="title">Accuracy and model-only latency</text>
+<text x="40" y="58" class="subtitle">Higher is better for mAP; lower is better for latency</text>
+<line x1="92.0" y1="70" x2="92.0" y2="400" class="grid"/>
+<text x="92.0" y="424" text-anchor="middle" class="axis">0</text>
+<line x1="272.0" y1="70" x2="272.0" y2="400" class="grid"/>
+<text x="272.0" y="424" text-anchor="middle" class="axis">30</text>
+<line x1="452.0" y1="70" x2="452.0" y2="400" class="grid"/>
+<text x="452.0" y="424" text-anchor="middle" class="axis">60</text>
+<line x1="632.0" y1="70" x2="632.0" y2="400" class="grid"/>
+<text x="632.0" y="424" text-anchor="middle" class="axis">90</text>
+<line x1="812.0" y1="70" x2="812.0" y2="400" class="grid"/>
+<text x="812.0" y="424" text-anchor="middle" class="axis">120</text>
+<line x1="92" y1="400.0" x2="812" y2="400.0" class="grid"/>
+<text x="80" y="404.0" text-anchor="end" class="axis">0.0</text>
+<line x1="92" y1="321.4" x2="812" y2="321.4" class="grid"/>
+<text x="80" y="325.4" text-anchor="end" class="axis">0.1</text>
+<line x1="92" y1="242.9" x2="812" y2="242.9" class="grid"/>
+<text x="80" y="246.9" text-anchor="end" class="axis">0.2</text>
+<line x1="92" y1="164.3" x2="812" y2="164.3" class="grid"/>
+<text x="80" y="168.3" text-anchor="end" class="axis">0.3</text>
+<line x1="92" y1="85.7" x2="812" y2="85.7" class="grid"/>
+<text x="80" y="89.7" text-anchor="end" class="axis">0.4</text>
+<line x1="92" y1="400" x2="812" y2="400" class="axis-line"/>
+<line x1="92" y1="70" x2="92" y2="400" class="axis-line"/>
+<circle cx="129.0" cy="88.0" r="8" fill="#2f6f73" stroke="#1f252b" stroke-width="1"/>
+<text x="139.0" y="76.0" class="label">FP32</text>
+<circle cx="184.5" cy="400.0" r="8" fill="#8c3b3b" stroke="#1f252b" stroke-width="1"/>
+<text x="194.5" y="390.0" class="label">Naive INT8</text>
+<circle cx="180.6" cy="106.1" r="8" fill="#596fb7" stroke="#1f252b" stroke-width="1"/>
+<text x="190.6" y="124.1" class="label">A8W8 QDQ</text>
+<circle cx="749.5" cy="91.8" r="8" fill="#4b8b3b" stroke="#1f252b" stroke-width="1"/>
+<text x="657.5" y="75.8" class="label">A16W8 QDQ</text>
+<circle cx="700.4" cy="98.1" r="8" fill="#b47a2a" stroke="#1f252b" stroke-width="1"/>
+<text x="608.4" y="118.1" class="label">A8W16 QDQ</text>
+<circle cx="753.4" cy="89.5" r="8" fill="#7a5ca8" stroke="#1f252b" stroke-width="1"/>
+<text x="763.4" y="87.5" class="label">A16W16 QDQ</text>
+<text x="812" y="464" text-anchor="end" class="axis">model-only latency (ms)</text>
+<text x="24" y="72" transform="rotate(-90 24 72)" class="axis">mAP50-95</text>
+</svg>
