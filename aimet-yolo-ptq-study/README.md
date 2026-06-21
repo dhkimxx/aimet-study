@@ -53,6 +53,8 @@ aimet-yolo-ptq-study/
     README.md
   reports/
     aimet_ptq_study.md
+    paper_report.md
+    research_roadmap.md
   results/
     README.md
   scripts/
@@ -94,6 +96,8 @@ scripts/run_native.sh python scripts/00_check_env.py
 AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `.python-version`과 `pyproject.toml`로 Python 3.10 venv를 고정합니다.
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
+
+논문형 리포트 초안은 `reports/paper_report.md`, 최종 리포트까지의 실험 큐와 완료 기준은 `reports/research_roadmap.md`에 정리합니다.
 
 ## 스터디 진행 순서
 

@@ -85,14 +85,19 @@ A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample1
 
 ## 레이턴시 결과
 
-| ID | 실험 | model-only 평균 ms | model-only p95 ms | end-to-end 평균 ms | end-to-end p95 ms |
-| --- | --- | ---: | ---: | ---: | ---: |
-| A | FP32 ONNX | 예정 | 예정 | 예정 | 예정 |
-| B | no-AIMET naive ONNX INT8 | 예정 | 예정 | 예정 | 예정 |
-| C | AIMET QuantSim PTQ | 예정 | 예정 | 예정 | 예정 |
-| D | AIMET CLE + QuantSim | 예정 | 예정 | 예정 | 예정 |
-| E | AIMET AdaRound + QuantSim | 예정 | 예정 | 예정 | 예정 |
-| F | AIMET AutoQuant | 예정 | 예정 | 예정 | 예정 |
+아래 값은 `scripts/08_benchmark_latency.py`로 같은 WSL2 native CUDAExecutionProvider 환경에서 측정했습니다. 각 모델은 warmup 20회, measured 100회, end-to-end 입력 이미지 32장 조건입니다.
+
+| ID | 실험 | 설정 | model-only 평균 ms | model-only p95 ms | end-to-end 평균 ms | end-to-end p95 ms | 비고 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| A | FP32 ONNX | opset17 | 6.16 | 7.27 | 13.56 | 23.80 | 기준선 |
+| B | no-AIMET naive ONNX INT8 | int8 storage, postprocess 포함 | 15.42 | 17.16 | 21.41 | 23.34 | 정확도 0, ORT Memcpy 102개 |
+| C | AIMET QuantSim PTQ | A8W8 QDQ | 14.77 | 15.81 | 21.25 | 23.51 | accuracy-eval QDQ |
+| C | AIMET QuantSim PTQ | A16W8 QDQ | 109.59 | 127.29 | 123.95 | 154.13 | ORT Memcpy 817개 |
+| C | AIMET QuantSim PTQ | A8W16 QDQ | 101.40 | 121.84 | 119.97 | 151.82 | ORT Memcpy 817개 |
+| C | AIMET QuantSim PTQ | A16W16 QDQ | 110.23 | 132.79 | 119.68 | 147.78 | ORT Memcpy 817개 |
+| S | Sensitivity | A8W8, all activations float, weight QDQ only | 7.19 | 8.65 | 13.49 | 15.27 | activation QDQ 제거 |
+
+해석: 현재 ONNX Runtime CUDA에서 QDQ accuracy-eval 모델은 FP32보다 빠르지 않습니다. 특히 16비트 QDQ는 정확도 회복에는 유용하지만 latency가 100ms대로 올라가므로 배포 후보가 아닙니다. 반대로 activation QDQ를 제거하고 weight QDQ만 남기면 latency가 FP32에 가까워져, 정확도 손실과 runtime overhead 모두 activation QDQ가 핵심 병목임을 뒷받침합니다.
 
 ## 메모리 결과
 
@@ -126,4 +131,5 @@ A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample1
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample100에서는 A16W8이 가장 높았고, activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
+- Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상이었습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 별도의 packed/EP 친화 export 경로가 필요합니다.
 - AdaRound는 작은 smoke 설정으로 API와 export 경로를 확인했습니다. 정식 비교는 기본 또는 충분한 iteration으로 다시 평가해야 합니다.
