@@ -16,12 +16,12 @@
 
 | 결론 | 근거 |
 | --- | --- |
-| naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | sample100 mAP50-95 0.0000, postprocess/output까지 양자화 |
-| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | A8W8 mAP50-95 0.5174, Conv weight INT storage 0/102 |
-| activation이 weight보다 민감 | A16W8 0.5449, A8W16 0.5347, all-activation-float 0.5440 |
+| naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | sample100/sample500 mAP50-95 0.0000, postprocess/output까지 양자화 |
+| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | sample500 A8W8 mAP50-95 0.4012 vs FP32 0.4203, Conv weight INT storage 0/102 |
+| activation이 weight보다 민감 | sample500 A16W8 0.4143, A8W16 0.4074, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
-| Head 내부 우선 후보는 `cv3`와 `scale2` | `head_cv3_outputs` 0.5252, `head_scale2_outputs` 0.5266 |
+| Head 내부 우선 후보는 `cv3` branch | sample500 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024 |
 
 ## 실험 큐
 
@@ -32,11 +32,15 @@ scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 -
 scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --force
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 8 --force
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 8 --weight-bitwidth 16 --force
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 16 --force
 ```
+
+상태: 완료. sample500 핵심 표는 `reports/quick_ptq_results.md`와 `reports/paper_report.md`에 반영했습니다. 다음 안정화 단계는 full COCO val 또는 더 큰 대표 subset입니다.
 
 ### P0: Head activation 원인 분석
 
-현재 `head_conv_outputs` 24개 QDQ 제거 외에 branch/scale/final output 단위 결과가 추가되었습니다. 다음 단계는 sample500 이상에서 `cv3`, `scale2`, final output 후보가 유지되는지 확인하는 것입니다.
+현재 `head_conv_outputs` 24개 QDQ 제거 외에 branch/scale/final output 단위 결과가 추가되었습니다. sample500에서는 `cv3`, `scale2`, final output 후보를 재확인했고, `cv3` branch가 세 후보 중 가장 큰 회복을 보였습니다.
 
 완료 기준:
 
@@ -44,7 +48,8 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | --- | --- |
 | layer group selector | `head_cv2_outputs`, `head_cv3_outputs`, `head_scale0/1/2_outputs`, `head_final_outputs` 구현 완료 |
 | 결과 표 | sample100 group별 제거 QDQ 수, mAP50-95, Conv output QDQ coverage 기록 완료 |
-| 다음 결론 | sample500 이상에서 skip 후보 또는 A16 후보 layer를 확정 |
+| 확대 평가 | sample500 `cv3`, `scale2`, final output 결과 기록 완료 |
+| 다음 결론 | `cv3` branch 중심으로 per-layer range, percentile, symmetric/asymmetric 후보를 확정 |
 
 ### P1: AdaRound 정식 비교
 
@@ -79,11 +84,11 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 
 ## 최종 원고 체크리스트
 
-- [ ] sample500 이상 정확도 표
+- [x] sample500 이상 정확도 표
 - [ ] full COCO 또는 full에 준하는 대표 subset 결과
 - [ ] latency 표와 측정 조건 고정
 - [ ] QDQ coverage 표
-- [ ] head sensitivity 확대 평가
+- [x] head sensitivity 확대 평가
 - [ ] activation sensitivity figure
 - [ ] deployment artifact 한계 명시
 - [ ] 재현 명령과 환경 해시 정리

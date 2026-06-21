@@ -98,6 +98,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
 논문형 리포트 초안은 `reports/paper_report.md`, 최종 리포트까지의 실험 큐와 완료 기준은 `reports/research_roadmap.md`에 정리합니다.
+현재 리포트는 sample100 탐색 결과와 sample500 확대 검증 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
 
@@ -151,6 +152,17 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --calib
 scripts/run_native.sh python scripts/05_aimet_cle_ptq.py --device 0 --calibration-samples 64 --eval-samples 100
 ```
 
+핵심 후보는 500장 subset으로 확대 검증합니다.
+
+```bash
+scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --eval-samples 500 --name fp32_onnx
+scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --name naive_onnx_int8
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --name aimet_quantsim_a8w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
+```
+
 AdaRound는 기본 설정이 오래 걸립니다. 먼저 API와 export 경로만 확인할 때는 작은 smoke 설정을 사용합니다.
 
 ```bash
@@ -189,6 +201,12 @@ Head Conv 출력은 branch/scale/final output 단위로도 나눠 볼 수 있습
 
 ```bash
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
+```
+
+sample500 확대 검증에서는 우선 후보만 다시 확인합니다.
+
+```bash
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 500 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
 ```
 
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.

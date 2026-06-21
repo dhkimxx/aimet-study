@@ -9,6 +9,7 @@
 | 16비트 결과 해석 | 16비트 결과도 accuracy와 coverage를 같이 기록 | sample100 CUDA 기준 A16W8이 가장 높았지만, AIMET QDQ 모델은 weight storage가 FP32라 deployment artifact가 아닙니다. 정확도 경향과 배포 효율을 분리해서 봅니다. |
 | Activation 민감도 | A8W8 QDQ에서 선택한 activation QDQ만 제거하는 ablation 스크립트를 추가 | A16W8이 A8W16보다 크게 회복한 원인을 확인하기 위해 weight QDQ는 유지하고 head, neck, Conv output, 전체 activation 범위별 정확도 회복을 비교합니다. |
 | Head activation 세분화 | YOLO head Conv output을 branch, scale, final output 단위로 나눠 sensitivity를 기록 | head 전체 24개 QDQ 제거가 큰 회복을 보였으므로, sample500 이상에서 재확인할 후보를 `cv3`, `scale2`, final output 중심으로 좁힙니다. |
+| sample500 확대 검증 | FP32, naive INT8, A8W8, 16비트 조합, head 후보를 500장으로 재평가 | naive INT8 붕괴는 유지됐고, A8W8은 FP32 대비 -0.0191 mAP50-95였습니다. 단일 축 비교에서는 A16W8이 A8W16보다 높고, head 후보 중 `cv3`가 가장 큰 회복을 보였습니다. |
 
 ## 2026-06-20
 
