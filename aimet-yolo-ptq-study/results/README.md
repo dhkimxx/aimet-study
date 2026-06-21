@@ -13,6 +13,8 @@ quantization_coverage_16bit_smoke.csv
 quantization_coverage_16bit_smoke.json
 quantization_coverage_sensitivity.csv
 quantization_coverage_sensitivity.json
+quantization_coverage_head_sensitivity.csv
+quantization_coverage_head_sensitivity.json
 latency.csv
 memory.csv
 encodings/

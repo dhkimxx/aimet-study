@@ -27,6 +27,14 @@ DEFAULT_VARIANTS = [
     "all_conv_outputs",
     "all_activations",
 ]
+HEAD_VARIANTS = [
+    "head_cv2_outputs",
+    "head_cv3_outputs",
+    "head_scale0_outputs",
+    "head_scale1_outputs",
+    "head_scale2_outputs",
+    "head_final_outputs",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,7 +44,7 @@ def parse_args() -> argparse.Namespace:
         "--source-model",
         default="results/models/yolo26n_pretrained.aimet_quantsim_int8_calib64.onnx",
     )
-    parser.add_argument("--variant", action="append", choices=DEFAULT_VARIANTS + ["graph_input"], default=[])
+    parser.add_argument("--variant", action="append", choices=DEFAULT_VARIANTS + HEAD_VARIANTS + ["graph_input"], default=[])
     parser.add_argument("--name-prefix", default="aimet_quantsim_a8w8_sensitivity")
     parser.add_argument("--device", default="0", help="Ultralytics device value, for example 0 or cpu.")
     parser.add_argument("--batch", type=int, default=None)

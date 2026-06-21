@@ -21,6 +21,7 @@
 | activation이 weight보다 민감 | A16W8 0.5449, A8W16 0.5347, all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
+| Head 내부 우선 후보는 `cv3`와 `scale2` | `head_cv3_outputs` 0.5252, `head_scale2_outputs` 0.5266 |
 
 ## 실험 큐
 
@@ -35,15 +36,15 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 
 ### P0: Head activation 원인 분석
 
-현재 `head_conv_outputs`는 24개 QDQ를 한 번에 제거합니다. 다음 단계는 head Conv output을 layer 그룹별로 나눠 어떤 branch가 가장 큰 손실을 내는지 보는 것입니다.
+현재 `head_conv_outputs` 24개 QDQ 제거 외에 branch/scale/final output 단위 결과가 추가되었습니다. 다음 단계는 sample500 이상에서 `cv3`, `scale2`, final output 후보가 유지되는지 확인하는 것입니다.
 
 완료 기준:
 
 | 항목 | 기준 |
 | --- | --- |
-| layer group selector | `/model.23/cv2`, `/model.23/cv3`, one2one branch 등으로 분리 |
-| 결과 표 | group별 제거 QDQ 수, mAP50-95, Conv output QDQ coverage |
-| 결론 | skip 후보 또는 A16 후보 layer를 명시 |
+| layer group selector | `head_cv2_outputs`, `head_cv3_outputs`, `head_scale0/1/2_outputs`, `head_final_outputs` 구현 완료 |
+| 결과 표 | sample100 group별 제거 QDQ 수, mAP50-95, Conv output QDQ coverage 기록 완료 |
+| 다음 결론 | sample500 이상에서 skip 후보 또는 A16 후보 layer를 확정 |
 
 ### P1: AdaRound 정식 비교
 
@@ -82,6 +83,7 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 - [ ] full COCO 또는 full에 준하는 대표 subset 결과
 - [ ] latency 표와 측정 조건 고정
 - [ ] QDQ coverage 표
+- [ ] head sensitivity 확대 평가
 - [ ] activation sensitivity figure
 - [ ] deployment artifact 한계 명시
 - [ ] 재현 명령과 환경 해시 정리

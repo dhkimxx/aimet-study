@@ -127,6 +127,31 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 
 `all_activations` 변형도 Conv weight QDQ 102/102를 유지하므로 완전 FP32가 아닙니다. 반대로 Conv weight INT storage는 여전히 0/102라, 이 결과도 배포용 packed INT8 성능이 아니라 fake-quant/QDQ 정확도 민감도 결과입니다.
 
+## YOLO head activation 세분화
+
+`head_conv_outputs` 24개 QDQ 제거가 큰 회복을 보였으므로, 같은 head 영역을 branch, scale, final Conv output 기준으로 다시 나눠 평가했습니다.
+
+실행 명령:
+
+```bash
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant head_cv2_outputs --variant head_cv3_outputs --variant head_scale0_outputs --variant head_scale1_outputs --variant head_scale2_outputs --variant head_final_outputs --force
+```
+
+정확도:
+
+| 모델 | 제거한 activation QDQ | 남은 Q/DQ | mAP50-95 | mAP50 | mAP75 | Precision | Recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| A8W8 기준 | 0 | 397/397 | 0.5174 | 0.6524 | 0.5516 | 0.7065 | 0.5739 |
+| head cv2 outputs float | 9 | 388/388 | 0.5198 | 0.6540 | 0.5606 | 0.7394 | 0.5653 |
+| head cv3 outputs float | 15 | 382/382 | 0.5252 | 0.6556 | 0.5653 | 0.6886 | 0.5670 |
+| head scale0 outputs float | 8 | 389/389 | 0.5202 | 0.6572 | 0.5578 | 0.6807 | 0.5896 |
+| head scale1 outputs float | 8 | 389/389 | 0.5235 | 0.6575 | 0.5678 | 0.7155 | 0.5651 |
+| head scale2 outputs float | 8 | 389/389 | 0.5266 | 0.6591 | 0.5677 | 0.7154 | 0.5788 |
+| head final outputs float | 6 | 391/391 | 0.5221 | 0.6616 | 0.5635 | 0.7015 | 0.5711 |
+| all head Conv outputs float | 24 | 373/373 | 0.5327 | 0.6611 | 0.5728 | 0.6834 | 0.5790 |
+
+해석: branch 기준으로는 `cv3` 쪽이 `cv2`보다 더 큰 회복을 보였고, scale 기준으로는 `scale2`가 가장 컸습니다. final Conv output 6개만 float로 되돌려도 A8W8 대비 mAP50-95가 0.0047 회복됩니다. 다만 `all head Conv outputs` 24개를 모두 float로 돌린 0.5327에는 못 미치므로 head 내부의 마지막 출력뿐 아니라 중간 Conv activation도 누적 영향을 줍니다. sample100 결과이므로, 최종 skip/16-bit 후보로 확정하기 전에 sample500 이상에서 `head_cv3_outputs`, `head_scale2_outputs`, `head_final_outputs`를 재확인해야 합니다.
+
 ## 산출물 해시
 
 | ID | 모델 SHA256 | 비고 |
@@ -145,6 +170,7 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 - CLE + QuantSim은 현재 샘플에서는 QuantSim 단독보다 약간 낮았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
 - AdaRound 결과는 `adaround-samples 8`, `iterations 50`의 smoke 설정입니다. 이 조건에서는 QuantSim/CLE보다 높은 mAP50-95를 보였지만, 정식 AdaRound 성능으로 보려면 sample과 iteration을 늘려 다시 평가해야 합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
+- YOLO head 세분화에서는 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 
@@ -154,6 +180,6 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 2. QuantSim과 CLE는 calibration sample을 64에서 1024로 늘려 full 설정을 평가합니다.
 3. AdaRound는 충분한 sample과 iteration으로 다시 실행합니다.
 4. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
-5. Head 주변 activation encoding을 더 세분화해서 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
+5. Head `cv3`, `scale2`, final Conv output 후보를 sample500 이상에서 재확인하고, per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
 6. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.
 7. 정확도 비교가 안정화되면 `scripts/08_benchmark_latency.py`로 model-only와 end-to-end 레이턴시를 측정합니다.

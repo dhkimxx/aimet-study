@@ -97,8 +97,36 @@ def strip_selected_qdq(
 
 def sensitivity_selector(name: str) -> Selector:
     if name == "head_conv_outputs":
+        return lambda tensor, producer, is_initializer: _is_head_conv_output(tensor, producer, is_initializer)
+    if name == "head_cv2_outputs":
         return lambda tensor, producer, is_initializer: (
-            not is_initializer and producer == "Conv" and tensor.startswith("/model.23/")
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.startswith("/model.23/one2one_cv2.")
+        )
+    if name == "head_cv3_outputs":
+        return lambda tensor, producer, is_initializer: (
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.startswith("/model.23/one2one_cv3.")
+        )
+    if name == "head_scale0_outputs":
+        return lambda tensor, producer, is_initializer: (
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.startswith(("/model.23/one2one_cv2.0/", "/model.23/one2one_cv3.0/"))
+        )
+    if name == "head_scale1_outputs":
+        return lambda tensor, producer, is_initializer: (
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.startswith(("/model.23/one2one_cv2.1/", "/model.23/one2one_cv3.1/"))
+        )
+    if name == "head_scale2_outputs":
+        return lambda tensor, producer, is_initializer: (
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.startswith(("/model.23/one2one_cv2.2/", "/model.23/one2one_cv3.2/"))
+        )
+    if name == "head_final_outputs":
+        return lambda tensor, producer, is_initializer: (
+            _is_head_conv_output(tensor, producer, is_initializer)
+            and tensor.endswith(".2/Conv_output_0")
         )
     if name == "late_neck_20_22":
         return lambda tensor, _producer, is_initializer: (
@@ -111,6 +139,10 @@ def sensitivity_selector(name: str) -> Selector:
     if name == "graph_input":
         return lambda tensor, producer, is_initializer: not is_initializer and producer is None
     raise ValueError(f"Unknown sensitivity variant: {name}")
+
+
+def _is_head_conv_output(tensor: str, producer: str | None, is_initializer: bool) -> bool:
+    return not is_initializer and producer == "Conv" and tensor.startswith("/model.23/")
 
 
 def _consumers_by_input(nodes) -> DefaultDict[str, list[onnx.NodeProto]]:

@@ -71,6 +71,8 @@ A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample1
 
 해석: 모든 activation QDQ를 제거하고 weight QDQ만 남기면 mAP50-95가 0.5440으로 회복되어 A16W8 0.5449와 거의 같습니다. 따라서 현 단계의 근본 손실은 weight보다 activation QDQ에 더 가깝습니다. 특히 head Conv output 24개만 float로 되돌려도 0.5327까지 회복되어 YOLO head 주변 activation encoding이 민감합니다.
 
+Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_scale2_outputs`가 0.5266, `head_final_outputs`가 0.5221이었습니다. 이는 head 전체 24개를 한 번에 float로 되돌린 0.5327보다는 낮지만, branch/scale 단위 후보를 좁히는 데 유효합니다. 다음 확대 평가에서는 `cv3`, `scale2`, final output 후보를 우선 확인합니다.
+
 ## 빠른 검증 산출물 확인
 
 | ID | 실험 | Q/DQ | Output QDQ | Conv input QDQ | Conv weight QDQ | Conv output QDQ | Conv weight INT storage | `/model.23` non-Conv QDQ | 모델 SHA256 |
@@ -131,5 +133,6 @@ A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample1
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample100에서는 A16W8이 가장 높았고, activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
+- Head 세분화에서는 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했습니다. 다만 sample100 결과이므로 확대 평가로 재확인해야 합니다.
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상이었습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 별도의 packed/EP 친화 export 경로가 필요합니다.
 - AdaRound는 작은 smoke 설정으로 API와 export 경로를 확인했습니다. 정식 비교는 기본 또는 충분한 iteration으로 다시 평가해야 합니다.

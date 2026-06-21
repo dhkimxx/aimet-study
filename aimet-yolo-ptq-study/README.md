@@ -185,6 +185,12 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant all_activations --force
 ```
 
+Head Conv 출력은 branch/scale/final output 단위로도 나눠 볼 수 있습니다.
+
+```bash
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
+```
+
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.
 
 ```bash
