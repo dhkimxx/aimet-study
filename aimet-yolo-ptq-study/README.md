@@ -67,6 +67,7 @@ aimet-yolo-ptq-study/
     07_aimet_autoquant.py
     08_benchmark_latency.py
     09_quantization_coverage.py
+    10_activation_sensitivity.py
   src/
     aimet_yolo_study/
 ```
@@ -170,6 +171,14 @@ AIMET QuantSim/CLE/AdaRound 스크립트는 activation/weight bitwidth를 CLI에
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --calibration-samples 64 --eval-samples 100 --activation-bitwidth 16 --weight-bitwidth 8
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --calibration-samples 64 --eval-samples 100 --activation-bitwidth 8 --weight-bitwidth 16
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --calibration-samples 64 --eval-samples 100 --activation-bitwidth 16 --weight-bitwidth 16
+```
+
+A8W8 모델에서 activation QDQ만 선택적으로 제거해 민감한 구간을 확인할 수 있습니다. 기본 변형은 YOLO head Conv 출력, late neck 20-22, 모든 Conv 출력, 모든 activation입니다.
+
+```bash
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --no-eval --force
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant head_conv_outputs --force
+scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 100 --variant all_activations --force
 ```
 
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.

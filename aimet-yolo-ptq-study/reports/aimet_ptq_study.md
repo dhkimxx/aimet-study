@@ -56,6 +56,21 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 
 커버리지상 네 조합 모두 Q/DQ 397/397, Conv weight QDQ 102/102, Conv output QDQ 102/102입니다. 그러나 Conv weight INT storage는 모두 0/102입니다. 즉 현재 AIMET QDQ 산출물은 정확도 평가용 fake-quant/QDQ 모델이며, weight가 실제 int8/int16 initializer로 접힌 deployment artifact는 아직 아닙니다. 또한 16비트 QDQ 모델은 CUDA 로드 시 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈으므로, 정확도 회복과 별개로 레이턴시는 반드시 별도 benchmark로 확인해야 합니다.
 
+## Activation QDQ 민감도
+
+A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample100 CUDA 조건으로 평가했습니다. weight QDQ는 유지했습니다.
+
+| 변형 | 제거한 activation QDQ | 남은 Q/DQ | Conv weight QDQ | Conv weight INT storage | mAP50-95 | mAP50 | mAP75 | 비고 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A8W8 기준 | 0 | 397/397 | 102/102 | 0/102 | 0.5174 | 0.6524 | 0.5516 | 전체 activation QDQ 유지 |
+| head Conv outputs float | 24 | 373/373 | 102/102 | 0/102 | 0.5327 | 0.6611 | 0.5728 | YOLO head Conv 출력만 float |
+| late neck 20-22 float | 33 | 364/364 | 102/102 | 0/102 | 0.5238 | 0.6525 | 0.5609 | neck 후반 일부 float |
+| all Conv outputs float | 102 | 295/295 | 102/102 | 0/102 | 0.5377 | 0.6652 | 0.5737 | 모든 Conv 출력 float |
+| all activations float | 295 | 102/102 | 102/102 | 0/102 | 0.5440 | 0.6672 | 0.5855 | weight QDQ만 유지 |
+| A16W8 참고 | 해당 없음 | 397/397 | 102/102 | 0/102 | 0.5449 | 0.6695 | 0.5862 | activation uint16 QDQ |
+
+해석: 모든 activation QDQ를 제거하고 weight QDQ만 남기면 mAP50-95가 0.5440으로 회복되어 A16W8 0.5449와 거의 같습니다. 따라서 현 단계의 근본 손실은 weight보다 activation QDQ에 더 가깝습니다. 특히 head Conv output 24개만 float로 되돌려도 0.5327까지 회복되어 YOLO head 주변 activation encoding이 민감합니다.
+
 ## 빠른 검증 산출물 확인
 
 | ID | 실험 | Q/DQ | Output QDQ | Conv input QDQ | Conv weight QDQ | Conv output QDQ | Conv weight INT storage | `/model.23` non-Conv QDQ | 모델 SHA256 |
@@ -110,4 +125,5 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 - B는 input/output/postprocess와 weight storage까지 더 공격적으로 양자화한 반면, C/D/E는 output/postprocess를 float로 남기고 weight storage도 FP32입니다. 정확도 비교와 배포 효율 비교를 분리해야 합니다.
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample100에서는 A16W8이 가장 높았고, activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
+- Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - AdaRound는 작은 smoke 설정으로 API와 export 경로를 확인했습니다. 정식 비교는 기본 또는 충분한 iteration으로 다시 평가해야 합니다.
