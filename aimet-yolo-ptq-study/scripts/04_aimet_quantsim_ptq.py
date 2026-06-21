@@ -8,7 +8,8 @@ import json
 import _bootstrap  # noqa: F401
 
 from aimet_yolo_study.aimet_quantsim import export_quantsim_model
-from aimet_yolo_study.artifacts import calibration_suffix
+from aimet_yolo_study.aimet_utils import override_quant_bitwidths
+from aimet_yolo_study.artifacts import calibration_suffix, precision_tag
 from aimet_yolo_study.config import load_experiment_config, resolve_project_path
 from aimet_yolo_study.metrics import ACCURACY_FIELDNAMES, jsonable
 from aimet_yolo_study.records import append_csv_row
@@ -27,6 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--imgsz", type=int, default=None)
     parser.add_argument("--calibration-samples", type=int, default=None)
+    parser.add_argument("--activation-bitwidth", type=int, choices=(8, 16), default=None)
+    parser.add_argument("--weight-bitwidth", type=int, choices=(8, 16), default=None)
     parser.add_argument("--eval-samples", type=int, default=None, help="Evaluate only a reproducible image subset.")
     parser.add_argument("--eval-seed", type=int, default=20260614)
     parser.add_argument("--name", default="aimet_quantsim_ptq")
@@ -42,7 +45,11 @@ def require_file(path, hint: str) -> None:
 def main() -> int:
     args = parse_args()
     config = load_experiment_config(args.config)
-    quant_config = load_experiment_config("configs/quantization.yaml")
+    quant_config = override_quant_bitwidths(
+        load_experiment_config("configs/quantization.yaml"),
+        activation_bitwidth=args.activation_bitwidth,
+        weight_bitwidth=args.weight_bitwidth,
+    )
     model_config = config["model"]
     dataset_config = config["dataset"]
     benchmark_config = config["benchmark"]
@@ -65,8 +72,11 @@ def main() -> int:
     batch_size = args.batch or int(benchmark_config["batch_size"])
     default_calibration_samples = int(dataset_config["calibration_count"])
     calibration_samples = args.calibration_samples or default_calibration_samples
+    activation_bitwidth = int(quant_config["defaults"]["activation_bitwidth"])
+    weight_bitwidth = int(quant_config["defaults"]["weight_bitwidth"])
+    quant_precision_tag = precision_tag(activation_bitwidth, weight_bitwidth)
     filename_prefix = (
-        f"{fp32_model.stem}.aimet_quantsim_int8"
+        f"{fp32_model.stem}.aimet_quantsim_{quant_precision_tag}"
         f"{calibration_suffix(calibration_samples, default_calibration_samples)}"
     )
 
@@ -105,6 +115,9 @@ def main() -> int:
         "results_dict": jsonable(getattr(metrics, "results_dict", {})),
         "aimet_model": str(aimet_model),
         "encodings": str(encodings),
+        "precision_tag": quant_precision_tag,
+        "activation_bitwidth": activation_bitwidth,
+        "weight_bitwidth": weight_bitwidth,
         "calibration_samples": calibration_samples,
         "eval_samples": args.eval_samples,
         "eval_seed": args.eval_seed,

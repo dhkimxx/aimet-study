@@ -6,6 +6,11 @@
 
 ```text
 metrics.csv
+metrics_quick.csv
+quantization_coverage.csv
+quantization_coverage.json
+quantization_coverage_16bit_smoke.csv
+quantization_coverage_16bit_smoke.json
 latency.csv
 memory.csv
 encodings/

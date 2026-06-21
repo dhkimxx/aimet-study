@@ -9,6 +9,12 @@ def calibration_suffix(calibration_samples: int, default_calibration_samples: in
     return f"_calib{calibration_samples}"
 
 
+def precision_tag(activation_bitwidth: int, weight_bitwidth: int) -> str:
+    if activation_bitwidth == 8 and weight_bitwidth == 8:
+        return "int8"
+    return f"a{activation_bitwidth}w{weight_bitwidth}"
+
+
 def adaround_suffix(
     calibration_samples: int,
     default_calibration_samples: int,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Iterable
 
@@ -68,3 +69,24 @@ def resolve_quant_scheme(name: str):
 def resolve_int8_type():
     """Return an AIMET 2.x qtype string that also works as a readable fallback."""
     return "int8"
+
+
+def override_quant_bitwidths(
+    quant_config: dict[str, object],
+    activation_bitwidth: int | None,
+    weight_bitwidth: int | None,
+) -> dict[str, object]:
+    """Return a quantization config with optional CLI bitwidth overrides."""
+    updated_config = copy.deepcopy(quant_config)
+    defaults = updated_config["defaults"]
+    if activation_bitwidth is not None:
+        defaults["activation_bitwidth"] = _validate_bitwidth(activation_bitwidth, "activation")
+    if weight_bitwidth is not None:
+        defaults["weight_bitwidth"] = _validate_bitwidth(weight_bitwidth, "weight")
+    return updated_config
+
+
+def _validate_bitwidth(bitwidth: int, label: str) -> int:
+    if bitwidth not in {8, 16}:
+        raise ValueError(f"{label} bitwidth must be 8 or 16, got {bitwidth}")
+    return bitwidth

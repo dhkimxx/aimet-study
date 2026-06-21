@@ -1,5 +1,13 @@
 # 의사결정 로그
 
+## 2026-06-21
+
+| 주제 | 결정 | 이유 |
+| --- | --- | --- |
+| 16비트 조합 | AIMET QuantSim/CLE/AdaRound 스크립트에 activation/weight bitwidth override를 둠 | A8W8만 보면 activation quantization error와 weight quantization error를 분리해서 설명하기 어렵습니다. A16W8, A8W16, A16W16을 같은 calibration/eval 조건으로 비교합니다. |
+| 16비트 QDQ opset | int16/uint16 QDQ export는 ONNX opset 21로 변환 | ONNX opset 17의 `QuantizeLinear`는 int8/uint8만 허용합니다. int16/uint16 QDQ는 opset 21이 필요하며, 기존 YOLO 그래프는 단순 버전 숫자 변경이 아니라 ONNX version converter를 거쳐야 checker를 통과합니다. |
+| 16비트 결과 해석 | 16비트 결과도 accuracy와 coverage를 같이 기록 | sample100 CUDA 기준 A16W8이 가장 높았지만, AIMET QDQ 모델은 weight storage가 FP32라 deployment artifact가 아닙니다. 정확도 경향과 배포 효율을 분리해서 봅니다. |
+
 ## 2026-06-20
 
 | 주제 | 결정 | 이유 |
@@ -8,6 +16,7 @@
 | AIMET 설치 | AIMET ONNX 2.2.0 GPU wheel을 `pyproject.toml` direct URL dependency로 관리 | AIMET 2.2.0 ONNX GPU package가 Python 3.10 wheel로 배포되어 있어 venv 재현성을 명시합니다. |
 | AIMET 평가 산출물 | ONNX Runtime으로 평가할 AIMET 모델은 표준 QDQ ONNX여야 함 | AIMET ONNX 2.2.0 public export는 ONNX에서 quantization 노드를 제거하고 `.encodings`를 별도로 저장하므로, QDQ 없는 ONNX는 ORT/Ultralytics에서 INT8로 실행되지 않습니다. |
 | YOLO postprocess 양자화 | detection postprocess의 비-Conv 텐서와 최종 `output0`은 QDQ 변환에서 제외 | postprocess까지 QDQ를 넣은 첫 시도는 sample20 기준 mAP가 0으로 떨어졌고, postprocess 제외 후 실제 QDQ 모델이 정상 mAP를 냈습니다. |
+| 비교 리포트 기준 | 정확도와 함께 양자화 커버리지를 같이 기록 | input/output, Conv input/weight/output, weight storage, postprocess 양자화 범위가 다르면 같은 INT8 결과로 비교하기 어렵습니다. |
 
 ## 2026-06-14
 

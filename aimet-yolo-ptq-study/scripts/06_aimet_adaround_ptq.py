@@ -8,7 +8,8 @@ import json
 import _bootstrap  # noqa: F401
 
 from aimet_yolo_study.aimet_quantsim import export_adaround_quantsim_model
-from aimet_yolo_study.artifacts import adaround_suffix
+from aimet_yolo_study.aimet_utils import override_quant_bitwidths
+from aimet_yolo_study.artifacts import adaround_suffix, precision_tag
 from aimet_yolo_study.config import load_experiment_config, resolve_project_path
 from aimet_yolo_study.metrics import ACCURACY_FIELDNAMES, jsonable
 from aimet_yolo_study.records import append_csv_row
@@ -29,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--calibration-samples", type=int, default=None)
     parser.add_argument("--adaround-samples", type=int, default=None)
     parser.add_argument("--adaround-iterations", type=int, default=None)
+    parser.add_argument("--activation-bitwidth", type=int, choices=(8, 16), default=None)
+    parser.add_argument("--weight-bitwidth", type=int, choices=(8, 16), default=None)
     parser.add_argument("--eval-samples", type=int, default=None, help="Evaluate only a reproducible image subset.")
     parser.add_argument("--eval-seed", type=int, default=20260614)
     parser.add_argument("--name", default="aimet_adaround_ptq")
@@ -44,7 +47,11 @@ def require_file(path, hint: str) -> None:
 def main() -> int:
     args = parse_args()
     config = load_experiment_config(args.config)
-    quant_config = load_experiment_config("configs/quantization.yaml")
+    quant_config = override_quant_bitwidths(
+        load_experiment_config("configs/quantization.yaml"),
+        activation_bitwidth=args.activation_bitwidth,
+        weight_bitwidth=args.weight_bitwidth,
+    )
     model_config = config["model"]
     dataset_config = config["dataset"]
     benchmark_config = config["benchmark"]
@@ -71,6 +78,9 @@ def main() -> int:
     calibration_samples = args.calibration_samples or default_calibration_samples
     adaround_samples = args.adaround_samples or default_adaround_samples
     adaround_iterations = args.adaround_iterations or default_adaround_iterations
+    activation_bitwidth = int(quant_config["defaults"]["activation_bitwidth"])
+    weight_bitwidth = int(quant_config["defaults"]["weight_bitwidth"])
+    quant_precision_tag = precision_tag(activation_bitwidth, weight_bitwidth)
     artifact_suffix = adaround_suffix(
         calibration_samples,
         default_calibration_samples,
@@ -79,7 +89,7 @@ def main() -> int:
         adaround_iterations,
         default_adaround_iterations,
     )
-    filename_prefix = f"{fp32_model.stem}.aimet_adaround_int8{artifact_suffix}"
+    filename_prefix = f"{fp32_model.stem}.aimet_adaround_{quant_precision_tag}{artifact_suffix}"
 
     aimet_model, encodings, adaround_encodings = export_adaround_quantsim_model(
         fp32_model=fp32_model,
@@ -119,6 +129,9 @@ def main() -> int:
         "aimet_model": str(aimet_model),
         "encodings": str(encodings),
         "adaround_encodings": str(adaround_encodings),
+        "precision_tag": quant_precision_tag,
+        "activation_bitwidth": activation_bitwidth,
+        "weight_bitwidth": weight_bitwidth,
         "calibration_samples": calibration_samples,
         "adaround_samples": adaround_samples,
         "adaround_iterations": adaround_iterations,

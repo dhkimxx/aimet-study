@@ -182,6 +182,7 @@ def _export_standard_qdq_model(sim, output_model: Path) -> None:
     }
     new_initializers = list(model.graph.initializer)
     new_nodes = []
+    requires_int16_qdq = False
 
     for node in model.graph.node:
         if node.op_type != "QcQuantizeOp":
@@ -210,6 +211,7 @@ def _export_standard_qdq_model(sim, output_model: Path) -> None:
         zero_point_name = f"{node.name}_zero_point"
         quantized_name = f"{node.output[0]}_quantized"
         scale, zero_point = _qdq_params_from_quantizer(quantizer)
+        requires_int16_qdq = requires_int16_qdq or zero_point.dtype in {np.dtype(np.int16), np.dtype(np.uint16)}
 
         new_initializers.append(onnx.numpy_helper.from_array(scale, scale_name))
         new_initializers.append(onnx.numpy_helper.from_array(zero_point, zero_point_name))
@@ -240,6 +242,8 @@ def _export_standard_qdq_model(sim, output_model: Path) -> None:
     model.graph.initializer.extend(new_initializers)
     del model.graph.node[:]
     model.graph.node.extend(_topological_sort_nodes(model, new_nodes))
+    if requires_int16_qdq:
+        model = _convert_default_opset(model, 21)
     onnx.checker.check_model(model)
     output_model.parent.mkdir(parents=True, exist_ok=True)
     onnx.save(model, str(output_model))
@@ -253,10 +257,26 @@ def _qdq_params_from_quantizer(quantizer) -> tuple[np.ndarray, np.ndarray]:
     else:
         offset = offset.astype(np.float32)
 
-    if bool(quantizer.use_symmetric_encodings):
-        return scale, np.zeros(scale.shape, dtype=np.int8)
+    bitwidth = int(getattr(quantizer, "bitwidth", 8))
+    if bitwidth not in {8, 16}:
+        raise ValueError(f"Standard QDQ export supports 8-bit and 16-bit quantizers, got {bitwidth}")
 
-    return scale, np.clip(np.rint(-offset), 0, 255).astype(np.uint8)
+    if bool(quantizer.use_symmetric_encodings):
+        zero_point_dtype = np.int8 if bitwidth == 8 else np.int16
+        return scale, np.zeros(scale.shape, dtype=zero_point_dtype)
+
+    if bitwidth == 8:
+        return scale, np.clip(np.rint(-offset), 0, 255).astype(np.uint8)
+    return scale, np.clip(np.rint(-offset), 0, 65535).astype(np.uint16)
+
+
+def _convert_default_opset(model: onnx.ModelProto, minimum_version: int) -> onnx.ModelProto:
+    for opset in model.opset_import:
+        if opset.domain in ("", "ai.onnx"):
+            if opset.version >= minimum_version:
+                return model
+            return onnx.version_converter.convert_version(model, minimum_version)
+    return onnx.version_converter.convert_version(model, minimum_version)
 
 
 def _should_skip_standard_qdq(tensor_name: str, producer_op_type: str | None) -> bool:
