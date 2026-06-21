@@ -16,9 +16,9 @@
 
 | 결론 | 근거 |
 | --- | --- |
-| naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | sample100/sample500 mAP50-95 0.0000, postprocess/output까지 양자화 |
-| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | sample500 A8W8 mAP50-95 0.4012 vs FP32 0.4203, Conv weight INT storage 0/102 |
-| activation이 weight보다 민감 | sample500 A16W8 0.4143, A8W16 0.4074, sample100 all-activation-float 0.5440 |
+| naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | full COCO mAP50-95 0.0000, postprocess/output까지 양자화 |
+| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | full COCO A8W8 0.3740 vs FP32 0.3971, Conv weight INT storage 0/102 |
+| activation이 weight보다 민감 | full COCO A16W8 0.3923, A8W16 0.3843, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
 | Head 내부 우선 후보는 `cv3` branch | sample500 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024 |
@@ -28,15 +28,15 @@
 ### P0: 리포트 결론 안정화
 
 ```bash
-scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --eval-samples 500
-scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500
-scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --force
-scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 8 --force
-scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 8 --weight-bitwidth 16 --force
-scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 16 --force
+scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --name fp32_onnx
+scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --name naive_onnx_int8
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --name aimet_quantsim_a8w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
 ```
 
-상태: 완료. sample500 핵심 표는 `reports/quick_ptq_results.md`와 `reports/paper_report.md`에 반영했습니다. 다음 안정화 단계는 full COCO val 또는 더 큰 대표 subset입니다.
+상태: 완료. sample500 표와 full COCO 핵심 표는 `reports/quick_ptq_results.md`, `reports/aimet_ptq_study.md`, `reports/paper_report.md`에 반영했습니다. AdaRound 정식 설정은 별도 P1 작업으로 남깁니다.
 
 ### P0: Head activation 원인 분석
 
@@ -85,10 +85,10 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 ## 최종 원고 체크리스트
 
 - [x] sample500 이상 정확도 표
-- [ ] full COCO 또는 full에 준하는 대표 subset 결과
-- [ ] latency 표와 측정 조건 고정
-- [ ] QDQ coverage 표
+- [x] full COCO 또는 full에 준하는 대표 subset 결과
+- [x] latency 표와 측정 조건 고정
+- [x] QDQ coverage 표
 - [x] head sensitivity 확대 평가
 - [ ] activation sensitivity figure
-- [ ] deployment artifact 한계 명시
-- [ ] 재현 명령과 환경 해시 정리
+- [x] deployment artifact 한계 명시
+- [x] 재현 명령과 환경 해시 정리

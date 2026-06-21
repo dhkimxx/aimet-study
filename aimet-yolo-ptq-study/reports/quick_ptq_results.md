@@ -2,7 +2,7 @@
 
 작성일: 2026-06-21
 
-이 문서는 COCO 전체 평가 전에 `--eval-samples 100`으로 실행한 빠른 검증 결과와, 핵심 후보를 `--eval-samples 500`으로 확대한 결과를 정리합니다. 목적은 최종 성능 판단이 아니라, no-AIMET INT8과 AIMET 기반 PTQ 경로가 실제로 어떤 차이를 보이는지 재현 가능한 숫자로 확인하는 것입니다.
+이 문서는 COCO 전체 평가 전에 `--eval-samples 100`으로 실행한 빠른 검증 결과, 핵심 후보를 `--eval-samples 500`으로 확대한 결과, 그리고 full COCO val에서 확인한 핵심 결과를 정리합니다. 목적은 no-AIMET INT8과 AIMET 기반 PTQ 경로가 실제로 어떤 차이를 보이는지 재현 가능한 숫자로 확인하는 것입니다.
 
 중요 정정: AIMET ONNX 2.2.0의 public `QuantizationSimModel.export()`는 ONNX를 저장하기 전에 AIMET `QcQuantizeOp` 노드를 제거하고 별도 `.encodings` 파일을 저장합니다. ONNX Runtime/Ultralytics는 이 `.encodings` 파일을 자동 적용하지 않으므로, QDQ 노드가 없는 AIMET ONNX를 평가한 이전 C/D/E 값은 INT8 결과가 아니라 FP32 ONNX 평가로 봐야 합니다. 아래 표는 `QuantizeLinear`/`DequantizeLinear` 노드가 포함된 ONNX로 다시 실행한 결과입니다.
 
@@ -11,8 +11,8 @@
 | 항목 | 값 |
 | --- | --- |
 | 모델 | `models/yolo26n_pretrained.onnx` |
-| 데이터셋 | COCO 2017 val subset |
-| 평가 샘플 | 100 images quick, 500 images expanded |
+| 데이터셋 | COCO 2017 val |
+| 평가 샘플 | 100 images quick, 500 images expanded, 5000 images full |
 | 입력 크기 | 640x640 |
 | Batch size | 1 |
 | Runtime | WSL2 native uv venv, AIMET ONNX, CUDAExecutionProvider |
@@ -79,6 +79,30 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 
 해석: naive INT8의 mAP 0 붕괴는 sample500에서도 그대로 재현됩니다. A8W8 QDQ는 FP32 대비 -0.0191 mAP50-95로 정확도를 유지하지만 완전한 복원은 아닙니다. 16비트 조합은 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8이 A8W16보다 더 크게 회복합니다. 따라서 sample500에서도 activation bitwidth를 올리는 효과가 weight bitwidth를 올리는 효과보다 큽니다.
 
+## full COCO val 확인
+
+아래 결과는 COCO 2017 val 5천 장 전체를 `batch 1`, `calib64`, `CUDAExecutionProvider` 조건으로 평가한 값입니다. `--eval-samples`를 생략해 실행했습니다.
+
+```bash
+scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --name fp32_onnx
+scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --name naive_onnx_int8
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --name aimet_quantsim_a8w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
+```
+
+| 실험 | 설정 | Runtime | mAP50-95 | mAP50 | mAP75 | Precision | Recall | FP32 대비 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| FP32 ONNX | full val | CUDA | 0.3971 | 0.5512 | 0.4311 | 0.6689 | 0.4990 | 0.0000 |
+| naive ONNX INT8 | calib64, full val | CUDA | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | -0.3971 |
+| AIMET QuantSim PTQ | A8W8, calib64, full val | CUDA | 0.3740 | 0.5321 | 0.4059 | 0.6450 | 0.4949 | -0.0231 |
+| AIMET QuantSim PTQ | A16W8, calib64, full val | CUDA | 0.3923 | 0.5490 | 0.4273 | 0.6606 | 0.5009 | -0.0049 |
+| AIMET QuantSim PTQ | A8W16, calib64, full val | CUDA | 0.3843 | 0.5392 | 0.4179 | 0.6543 | 0.4957 | -0.0128 |
+| AIMET QuantSim PTQ | A16W16, calib64, full val | CUDA | 0.3952 | 0.5489 | 0.4288 | 0.6583 | 0.5020 | -0.0019 |
+
+해석: full COCO에서도 sample500 결론이 유지됩니다. naive INT8은 완전히 붕괴했고, A8W8 QDQ는 정확도를 유지하되 FP32 대비 -0.0231 mAP50-95 손실이 남았습니다. A16W8이 A8W16보다 높아 activation 쪽 민감도가 더 크고, A16W16은 FP32에 거의 붙지만 ORT CUDA latency가 100ms 이상이라 배포 후보가 아니라 정확도 상한으로 해석합니다.
+
 ## 16비트 조합
 
 아래 결과는 QuantSim 단독 C 경로에서 A8W8/A16W8/A8W16/A16W16을 같은 `calib64`, `CUDAExecutionProvider` 조건으로 비교한 값입니다. 목적은 activation bitwidth와 weight bitwidth 중 어느 쪽이 정확도에 더 민감한지 확인하는 것입니다.
@@ -111,7 +135,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 
 16비트 QDQ는 ONNX `QuantizeLinear`/`DequantizeLinear`의 `int16/uint16` 타입 지원 때문에 opset 21이 필요합니다. 기존 YOLO ONNX는 opset 17이라 단순히 opset 숫자만 올리면 `ReduceMax` 같은 op schema가 깨지므로, export 시 ONNX version converter로 opset 21 변환을 수행합니다.
 
-sample100 기준으로 A16W8이 가장 높았습니다. sample500 기준으로는 A16W16이 가장 높지만, 단일 축 비교에서는 A16W8 0.4143이 A8W16 0.4074보다 높습니다. 따라서 현재 YOLO QDQ 경로에서는 weight보다 activation quantization error가 더 민감해 보입니다. 다만 A16W16은 정확도만 보면 FP32에 가장 가깝지만, 아래 latency 결과처럼 배포 후보로 해석하면 안 됩니다.
+sample100 기준으로 A16W8이 가장 높았습니다. sample500과 full 기준으로는 A16W16이 가장 높지만, 단일 축 비교에서는 sample500 A16W8 0.4143 > A8W16 0.4074, full A16W8 0.3923 > A8W16 0.3843입니다. 따라서 현재 YOLO QDQ 경로에서는 weight보다 activation quantization error가 더 민감해 보입니다. 다만 A16W16은 정확도만 보면 FP32에 가장 가깝지만, 아래 latency 결과처럼 배포 후보로 해석하면 안 됩니다.
 
 다만 16비트 QDQ 모델을 CUDAExecutionProvider로 로드할 때 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈습니다. 정확도는 회복되지만 CUDA kernel 배치가 비효율적일 수 있다는 뜻이므로, 16비트 조합은 정확도 후보로는 의미가 있어도 레이턴시 후보로는 별도 benchmark가 필요합니다.
 
@@ -207,22 +231,21 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 
 ## 해석
 
-- FP32 ONNX는 100장 샘플 기준으로 정상적인 detection 성능을 보였습니다.
+- FP32 ONNX는 full COCO val 기준 mAP50-95 0.3971로 정상적인 detection 성능을 보였습니다.
 - no-AIMET naive ONNX INT8은 mAP가 0으로 떨어졌습니다. YOLO 모델에 일반적인 ONNX Runtime static quantization을 그대로 적용하면 출력 분포나 후처리 호환성이 깨질 수 있음을 보여줍니다.
-- AIMET QuantSim PTQ를 실제 QDQ ONNX로 평가하면 FP32 대비 mAP50-95가 약 0.0263 낮았습니다. 그래도 naive ONNX INT8처럼 완전히 붕괴하지는 않았습니다.
+- AIMET QuantSim PTQ를 실제 QDQ ONNX로 평가하면 full COCO 기준 FP32 대비 mAP50-95가 0.0231 낮았습니다. 그래도 naive ONNX INT8처럼 완전히 붕괴하지는 않았습니다.
 - CLE + QuantSim은 현재 샘플에서는 QuantSim 단독보다 약간 낮았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
 - AdaRound 결과는 `adaround-samples 8`, `iterations 50`의 smoke 설정입니다. 이 조건에서는 QuantSim/CLE보다 높은 mAP50-95를 보였지만, 정식 AdaRound 성능으로 보려면 sample과 iteration을 늘려 다시 평가해야 합니다.
-- 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. sample500에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
+- 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 
 ## 다음 실험
 
-1. 전체 COCO val 또는 더 큰 대표 subset으로 sample500 결론의 안정성을 확인합니다.
-2. QuantSim과 CLE는 calibration sample을 64에서 1024로 늘려 full 설정을 평가합니다.
-3. AdaRound는 충분한 sample과 iteration으로 sample500 이상에서 다시 실행합니다.
-4. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
-5. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
-6. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.
-7. 정확도 비교가 안정화되면 `scripts/08_benchmark_latency.py`로 model-only와 end-to-end 레이턴시를 측정합니다.
+1. QuantSim과 CLE는 calibration sample을 64에서 1024로 늘려 full 설정을 평가합니다.
+2. AdaRound는 충분한 sample과 iteration으로 sample500 이상에서 다시 실행합니다.
+3. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
+4. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
+5. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.
+6. 정확도-레이턴시 Pareto와 activation sensitivity figure를 생성합니다.

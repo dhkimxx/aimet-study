@@ -98,7 +98,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
 논문형 리포트 초안은 `reports/paper_report.md`, 최종 리포트까지의 실험 큐와 완료 기준은 `reports/research_roadmap.md`에 정리합니다.
-현재 리포트는 sample100 탐색 결과와 sample500 확대 검증 결과를 함께 기록합니다.
+현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
 
@@ -161,6 +161,17 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
+```
+
+최종 정확도 표는 COCO val 5천 장 전체로 확인합니다. `--eval-samples`를 생략하면 full val 평가가 실행되고 결과는 `results/metrics.csv`에 기록됩니다.
+
+```bash
+scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --name fp32_onnx
+scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --name naive_onnx_int8
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --name aimet_quantsim_a8w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
 ```
 
 AdaRound는 기본 설정이 오래 걸립니다. 먼저 API와 export 경로만 확인할 때는 작은 smoke 설정을 사용합니다.
