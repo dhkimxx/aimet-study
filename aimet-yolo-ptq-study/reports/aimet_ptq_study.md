@@ -18,18 +18,19 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 
 ## 전체 COCO full 평가 결과
 
-아래 표는 COCO 2017 val 5천 장 전체를 같은 `calib64`, `batch 1`, `CUDAExecutionProvider` 조건으로 평가한 결과입니다. A8W8은 실제 QDQ ONNX 정확도 기준선이고, 16비트 조합은 activation/weight quantization error를 분리하기 위한 진단용입니다.
+아래 표는 COCO 2017 val 5천 장 전체를 `batch 1`, `CUDAExecutionProvider` 조건으로 평가한 결과입니다. A8W8은 실제 QDQ ONNX 정확도 기준선이고, 16비트 조합은 activation/weight quantization error를 분리하기 위한 진단용입니다.
 
 | ID | 실험 | 설정 | mAP50-95 | mAP50 | mAP75 | Precision | Recall | FP32 대비 |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | A | FP32 ONNX | full val | 0.3971 | 0.5512 | 0.4311 | 0.6689 | 0.4990 | 0.0000 |
 | B | no-AIMET naive ONNX INT8 | calib64, full val | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | -0.3971 |
 | C | AIMET QuantSim PTQ | A8W8, calib64, full val | 0.3740 | 0.5321 | 0.4059 | 0.6450 | 0.4949 | -0.0231 |
+| C | AIMET QuantSim PTQ | A8W8, calib1024, full val | 0.3787 | 0.5346 | 0.4130 | 0.6491 | 0.4929 | -0.0184 |
 | C | AIMET QuantSim PTQ | A16W8, calib64, full val | 0.3923 | 0.5490 | 0.4273 | 0.6606 | 0.5009 | -0.0049 |
 | C | AIMET QuantSim PTQ | A8W16, calib64, full val | 0.3843 | 0.5392 | 0.4179 | 0.6543 | 0.4957 | -0.0128 |
 | C | AIMET QuantSim PTQ | A16W16, calib64, full val | 0.3952 | 0.5489 | 0.4288 | 0.6583 | 0.5020 | -0.0019 |
 
-해석: naive INT8은 전체 COCO에서도 모든 지표가 0으로 붕괴했습니다. AIMET A8W8 QDQ는 FP32 대비 -0.0231 mAP50-95로 정확도를 유지하지만 완전 복원은 아닙니다. 16비트 조합에서는 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8 0.3923이 A8W16 0.3843보다 높습니다. 따라서 full COCO 기준에서도 activation quantization error가 weight quantization error보다 더 민감하다는 결론이 유지됩니다.
+해석: naive INT8은 전체 COCO에서도 모든 지표가 0으로 붕괴했습니다. AIMET A8W8 QDQ는 FP32 대비 -0.0231 mAP50-95로 정확도를 유지하지만 완전 복원은 아닙니다. Calibration을 64장에서 1024장으로 늘리면 A8W8은 0.3740에서 0.3787로 +0.0047만 회복합니다. 따라서 calibration 부족이 일부 원인이긴 하지만 주원인은 아닙니다. 16비트 조합에서는 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8 0.3923이 A8W16 0.3843보다 높습니다. 따라서 full COCO 기준에서도 activation quantization error가 weight quantization error보다 더 민감하다는 결론이 유지됩니다.
 
 ## 빠른 검증 결과
 
@@ -67,13 +68,14 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 | 실험 | 설정 | sample100 mAP50-95 | sample500 mAP50-95 | full mAP50-95 | full FP32 대비 | 비고 |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | AIMET QuantSim PTQ | A8W8, calib64 | 0.5174 | 0.4012 | 0.3740 | -0.0231 | opset 17 |
+| AIMET QuantSim PTQ | A8W8, calib1024 | - | - | 0.3787 | -0.0184 | opset 17, calibration ablation |
 | AIMET QuantSim PTQ | A16W8, calib64 | 0.5449 | 0.4143 | 0.3923 | -0.0049 | opset 21, activation uint16 QDQ |
 | AIMET QuantSim PTQ | A8W16, calib64 | 0.5347 | 0.4074 | 0.3843 | -0.0128 | opset 21, weight int16 QDQ |
 | AIMET QuantSim PTQ | A16W16, calib64 | 0.5374 | 0.4170 | 0.3952 | -0.0019 | opset 21 |
 
 해석: sample100 기준에서는 A16W8이 가장 높았고, sample500/full 기준에서는 A16W16이 FP32에 가장 가까웠습니다. 그러나 단일 축 비교에서는 모든 표본에서 A16W8이 A8W16보다 높아, 현재 YOLO QDQ 경로에서 weight보다 activation quantization error가 더 민감하다는 결론이 안정적으로 유지됩니다.
 
-커버리지상 네 조합 모두 Q/DQ 397/397, Conv weight QDQ 102/102, Conv output QDQ 102/102입니다. 그러나 Conv weight INT storage는 모두 0/102입니다. 즉 현재 AIMET QDQ 산출물은 정확도 평가용 fake-quant/QDQ 모델이며, weight가 실제 int8/int16 initializer로 접힌 deployment artifact는 아직 아닙니다. 또한 16비트 QDQ 모델은 CUDA 로드 시 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈으므로, 정확도 회복과 별개로 레이턴시는 반드시 별도 benchmark로 확인해야 합니다.
+커버리지상 위 QDQ 조합들은 Q/DQ 397/397, Conv weight QDQ 102/102, Conv output QDQ 102/102입니다. 그러나 Conv weight INT storage는 모두 0/102입니다. 즉 현재 AIMET QDQ 산출물은 정확도 평가용 fake-quant/QDQ 모델이며, weight가 실제 int8/int16 initializer로 접힌 deployment artifact는 아직 아닙니다. 또한 16비트 QDQ 모델은 CUDA 로드 시 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈으므로, 정확도 회복과 별개로 레이턴시는 반드시 별도 benchmark로 확인해야 합니다.
 
 ## Activation QDQ 민감도
 
@@ -158,7 +160,7 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 - 실제 QDQ 기준 100장 빠른 검증에서는 AdaRound smoke가 C/D보다 가장 높은 mAP50-95를 보였습니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화한 첫 시도는 sample20 기준 mAP가 0으로 떨어졌습니다.
 - B는 input/output/postprocess와 weight storage까지 더 공격적으로 양자화한 반면, C/D/E는 output/postprocess를 float로 남기고 weight storage도 FP32입니다. 정확도 비교와 배포 효율 비교를 분리해야 합니다.
-- full COCO 기준으로 A8W8은 FP32 대비 -0.0231 mAP50-95였고, A16W16은 -0.0019까지 회복했습니다.
+- full COCO 기준으로 A8W8 calib64는 FP32 대비 -0.0231 mAP50-95였고, calib1024는 -0.0184까지 소폭 회복했습니다. A16W16은 -0.0019까지 회복했습니다.
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample500/full에서는 A16W16이 FP32에 가장 가까웠지만, 단일 축 비교에서는 A16W8이 A8W16보다 높아 activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.

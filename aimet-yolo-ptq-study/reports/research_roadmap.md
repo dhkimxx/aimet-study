@@ -17,7 +17,7 @@
 | 결론 | 근거 |
 | --- | --- |
 | naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | full COCO mAP50-95 0.0000, postprocess/output까지 양자화 |
-| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | full COCO A8W8 0.3740 vs FP32 0.3971, Conv weight INT storage 0/102 |
+| AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | full COCO A8W8 calib64 0.3740, calib1024 0.3787 vs FP32 0.3971, Conv weight INT storage 0/102 |
 | activation이 weight보다 민감 | full COCO A16W8 0.3923, A8W16 0.3843, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
@@ -31,12 +31,13 @@
 scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 --name fp32_onnx
 scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --name naive_onnx_int8
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --name aimet_quantsim_a8w8_gpu
+scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 1024 --name aimet_quantsim_a8w8_calib1024_gpu --force
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
 ```
 
-상태: 완료. sample500 표와 full COCO 핵심 표는 `reports/quick_ptq_results.md`, `reports/aimet_ptq_study.md`, `reports/paper_report.md`에 반영했습니다. AdaRound 정식 설정은 별도 P1 작업으로 남깁니다.
+상태: 완료. sample500 표, full COCO 핵심 표, A8W8 calib1024 calibration ablation은 `reports/quick_ptq_results.md`, `reports/aimet_ptq_study.md`, `reports/paper_report.md`에 반영했습니다. AdaRound 정식 설정은 별도 P1 작업으로 남깁니다.
 
 ### P0: Head activation 원인 분석
 

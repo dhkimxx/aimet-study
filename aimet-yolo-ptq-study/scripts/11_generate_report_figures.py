@@ -33,6 +33,16 @@ FULL_MODELS = [
     ("fp32_onnx", "FP32", "#2f6f73"),
     ("naive_onnx_int8", "Naive INT8", "#8c3b3b"),
     ("aimet_quantsim_a8w8_gpu", "A8W8 QDQ", "#596fb7"),
+    ("aimet_quantsim_a8w8_calib1024_gpu", "A8W8 calib1024", "#3d7ca6"),
+    ("aimet_quantsim_a16w8_gpu", "A16W8 QDQ", "#4b8b3b"),
+    ("aimet_quantsim_a8w16_gpu", "A8W16 QDQ", "#b47a2a"),
+    ("aimet_quantsim_a16w16_gpu", "A16W16 QDQ", "#7a5ca8"),
+]
+
+LATENCY_MODELS = [
+    ("fp32_onnx", "FP32", "#2f6f73"),
+    ("naive_onnx_int8", "Naive INT8", "#8c3b3b"),
+    ("aimet_quantsim_a8w8_gpu", "A8W8 QDQ", "#596fb7"),
     ("aimet_quantsim_a16w8_gpu", "A16W8 QDQ", "#4b8b3b"),
     ("aimet_quantsim_a8w16_gpu", "A8W16 QDQ", "#b47a2a"),
     ("aimet_quantsim_a16w16_gpu", "A16W16 QDQ", "#7a5ca8"),
@@ -130,12 +140,12 @@ def draw_full_accuracy(rows: dict[str, dict[str, str]], output_dir: Path) -> Pat
         SeriesPoint(key=name, label=label, value=as_float(rows[name], "box_map_50_95"), color=color)
         for name, label, color in FULL_MODELS
     ]
-    width, height = 960, 430
+    width, height = 960, 480
     left, top, plot_width = 190, 78, 620
-    bar_h, gap = 30, 18
+    bar_h, gap = 28, 16
     x_max = 0.42
     body = [
-        '<rect width="960" height="430" fill="#ffffff"/>',
+        f'<rect width="{width}" height="{height}" fill="#ffffff"/>',
         '<text x="40" y="36" class="title">Full COCO accuracy</text>',
         '<text x="40" y="58" class="subtitle">COCO val 5000, mAP50-95, CUDAExecutionProvider</text>',
     ]
@@ -162,7 +172,7 @@ def draw_accuracy_latency(
     output_dir: Path,
 ) -> Path:
     points = []
-    for metric_name, label, color in FULL_MODELS:
+    for metric_name, label, color in LATENCY_MODELS:
         latency_name = LATENCY_NAMES[label]
         points.append(
             ParetoPoint(
