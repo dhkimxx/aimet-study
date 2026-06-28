@@ -88,6 +88,7 @@ scripts/run_native.sh python scripts/02_eval_fp32_onnx.py --device 0 --batch 1 -
 scripts/run_native.sh python scripts/03_eval_naive_int8_onnx.py --device 0 --batch 1 --calibration-samples 64 --name naive_onnx_int8
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --name aimet_quantsim_a8w8_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 1024 --name aimet_quantsim_a8w8_calib1024_gpu --force
+scripts/run_native.sh python scripts/05_aimet_cle_ptq.py --device 0 --batch 1 --calibration-samples 1024 --name aimet_cle_a8w8_calib1024_gpu --force
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
@@ -99,11 +100,12 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | naive ONNX INT8 | calib64, full val | CUDA | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | -0.3971 |
 | AIMET QuantSim PTQ | A8W8, calib64, full val | CUDA | 0.3740 | 0.5321 | 0.4059 | 0.6450 | 0.4949 | -0.0231 |
 | AIMET QuantSim PTQ | A8W8, calib1024, full val | CUDA | 0.3787 | 0.5346 | 0.4130 | 0.6491 | 0.4929 | -0.0184 |
+| AIMET CLE + QuantSim | A8W8, calib1024, full val | CUDA | 0.3788 | 0.5347 | 0.4127 | 0.6448 | 0.4962 | -0.0183 |
 | AIMET QuantSim PTQ | A16W8, calib64, full val | CUDA | 0.3923 | 0.5490 | 0.4273 | 0.6606 | 0.5009 | -0.0049 |
 | AIMET QuantSim PTQ | A8W16, calib64, full val | CUDA | 0.3843 | 0.5392 | 0.4179 | 0.6543 | 0.4957 | -0.0128 |
 | AIMET QuantSim PTQ | A16W16, calib64, full val | CUDA | 0.3952 | 0.5489 | 0.4288 | 0.6583 | 0.5020 | -0.0019 |
 
-해석: full COCO에서도 sample500 결론이 유지됩니다. naive INT8은 완전히 붕괴했고, A8W8 QDQ는 정확도를 유지하되 FP32 대비 -0.0231 mAP50-95 손실이 남았습니다. Calibration sample을 64에서 1024로 늘린 A8W8은 0.3787로 +0.0047만 회복했습니다. A16W8이 A8W16보다 높아 activation 쪽 민감도가 더 크고, A16W16은 FP32에 거의 붙지만 ORT CUDA latency가 100ms 이상이라 배포 후보가 아니라 정확도 상한으로 해석합니다.
+해석: full COCO에서도 sample500 결론이 유지됩니다. naive INT8은 완전히 붕괴했고, A8W8 QDQ는 정확도를 유지하되 FP32 대비 -0.0231 mAP50-95 손실이 남았습니다. Calibration sample을 64에서 1024로 늘린 A8W8은 0.3787로 +0.0047만 회복했습니다. CLE calib1024는 0.3788로 QuantSim calib1024와 사실상 같고, 이 ONNX에는 BatchNorm이 없어 AIMET high-bias folding이 지원되지 않았습니다. A16W8이 A8W16보다 높아 activation 쪽 민감도가 더 크고, A16W16은 FP32에 거의 붙지만 ORT CUDA latency가 100ms 이상이라 배포 후보가 아니라 정확도 상한으로 해석합니다.
 
 ## 16비트 조합
 
@@ -132,6 +134,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | A8W8 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
 | A8W8 calib1024 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
+| CLE A8W8 calib1024 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
 | A16W8 | 21 | 397/397 | 102/102 | 0/102 | 102 | 0 | 0 | 295 | 9.882 |
 | A8W16 | 21 | 397/397 | 102/102 | 0/102 | 0 | 295 | 102 | 0 | 9.890 |
 | A16W16 | 21 | 397/397 | 102/102 | 0/102 | 0 | 0 | 102 | 295 | 9.890 |
@@ -230,6 +233,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 | B | `29d4343971e6dc8609631ba302101634ce96e38e023accb4077402333a056d34` | naive QDQ INT8 |
 | C | `37ddc7829f1d23504762626bb9adae5511607d2a1a7218ea5d0f3d0a58180a95` | AIMET QDQ |
 | D | `00c59e859fe38d2554299d54b1c4ceb670306b8bbb84387540d0fb0ff00b2136` | AIMET QDQ |
+| D1024 | `3c03a1ed761b649c029c3336b481d090625e18448d07ba92601896478049778d` | AIMET CLE calib1024 QDQ |
 | E | `00757f981c03df09f94f1fa7239211f71b6a0ce60627ef17218055ca187a380c` | AIMET QDQ |
 
 ## 해석
@@ -238,7 +242,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - no-AIMET naive ONNX INT8은 mAP가 0으로 떨어졌습니다. YOLO 모델에 일반적인 ONNX Runtime static quantization을 그대로 적용하면 출력 분포나 후처리 호환성이 깨질 수 있음을 보여줍니다.
 - AIMET QuantSim PTQ를 실제 QDQ ONNX로 평가하면 full COCO 기준 A8W8 calib64는 FP32 대비 mAP50-95가 0.0231 낮았습니다. 그래도 naive ONNX INT8처럼 완전히 붕괴하지는 않았습니다.
 - Calibration sample을 64장에서 1024장으로 늘린 A8W8은 full COCO mAP50-95가 0.3740에서 0.3787로 올랐습니다. 회복폭이 +0.0047이라 calibration 부족만으로 A8W8 손실을 설명하기는 어렵습니다.
-- CLE + QuantSim은 현재 샘플에서는 QuantSim 단독보다 약간 낮았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
+- CLE + QuantSim은 sample100에서는 QuantSim 단독보다 약간 낮았고, full COCO calib1024에서는 QuantSim calib1024와 사실상 같았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
 - AdaRound 결과는 `adaround-samples 8`, `iterations 50`의 smoke 설정입니다. 이 조건에서는 QuantSim/CLE보다 높은 mAP50-95를 보였지만, 정식 AdaRound 성능으로 보려면 sample과 iteration을 늘려 다시 평가해야 합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
@@ -247,8 +251,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 
 ## 다음 실험
 
-1. CLE는 calibration sample을 64에서 1024로 늘려 full 설정을 평가합니다.
-2. AdaRound는 충분한 sample과 iteration으로 sample500 이상에서 다시 실행합니다.
-3. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
-4. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
-5. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.
+1. AdaRound는 충분한 sample과 iteration으로 sample500 이상에서 다시 실행합니다.
+2. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
+3. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
+4. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.

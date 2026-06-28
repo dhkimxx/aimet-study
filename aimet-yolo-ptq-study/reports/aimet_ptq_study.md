@@ -26,11 +26,12 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 | B | no-AIMET naive ONNX INT8 | calib64, full val | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 | -0.3971 |
 | C | AIMET QuantSim PTQ | A8W8, calib64, full val | 0.3740 | 0.5321 | 0.4059 | 0.6450 | 0.4949 | -0.0231 |
 | C | AIMET QuantSim PTQ | A8W8, calib1024, full val | 0.3787 | 0.5346 | 0.4130 | 0.6491 | 0.4929 | -0.0184 |
+| D | AIMET CLE + QuantSim | A8W8, calib1024, full val | 0.3788 | 0.5347 | 0.4127 | 0.6448 | 0.4962 | -0.0183 |
 | C | AIMET QuantSim PTQ | A16W8, calib64, full val | 0.3923 | 0.5490 | 0.4273 | 0.6606 | 0.5009 | -0.0049 |
 | C | AIMET QuantSim PTQ | A8W16, calib64, full val | 0.3843 | 0.5392 | 0.4179 | 0.6543 | 0.4957 | -0.0128 |
 | C | AIMET QuantSim PTQ | A16W16, calib64, full val | 0.3952 | 0.5489 | 0.4288 | 0.6583 | 0.5020 | -0.0019 |
 
-해석: naive INT8은 전체 COCO에서도 모든 지표가 0으로 붕괴했습니다. AIMET A8W8 QDQ는 FP32 대비 -0.0231 mAP50-95로 정확도를 유지하지만 완전 복원은 아닙니다. Calibration을 64장에서 1024장으로 늘리면 A8W8은 0.3740에서 0.3787로 +0.0047만 회복합니다. 따라서 calibration 부족이 일부 원인이긴 하지만 주원인은 아닙니다. 16비트 조합에서는 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8 0.3923이 A8W16 0.3843보다 높습니다. 따라서 full COCO 기준에서도 activation quantization error가 weight quantization error보다 더 민감하다는 결론이 유지됩니다.
+해석: naive INT8은 전체 COCO에서도 모든 지표가 0으로 붕괴했습니다. AIMET A8W8 QDQ는 FP32 대비 -0.0231 mAP50-95로 정확도를 유지하지만 완전 복원은 아닙니다. Calibration을 64장에서 1024장으로 늘리면 A8W8은 0.3740에서 0.3787로 +0.0047만 회복합니다. CLE calib1024는 0.3788로 QuantSim calib1024와 사실상 같았고, BatchNorm 없는 ONNX라 high-bias folding도 적용되지 않았습니다. 따라서 calibration 부족이나 CLE만으로 A8W8 손실을 설명하기는 어렵습니다. 16비트 조합에서는 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8 0.3923이 A8W16 0.3843보다 높습니다. 따라서 full COCO 기준에서도 activation quantization error가 weight quantization error보다 더 민감하다는 결론이 유지됩니다.
 
 ## 빠른 검증 결과
 
@@ -69,6 +70,7 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | AIMET QuantSim PTQ | A8W8, calib64 | 0.5174 | 0.4012 | 0.3740 | -0.0231 | opset 17 |
 | AIMET QuantSim PTQ | A8W8, calib1024 | - | - | 0.3787 | -0.0184 | opset 17, calibration ablation |
+| AIMET CLE + QuantSim | A8W8, calib1024 | - | - | 0.3788 | -0.0183 | opset 17, CLE ablation |
 | AIMET QuantSim PTQ | A16W8, calib64 | 0.5449 | 0.4143 | 0.3923 | -0.0049 | opset 21, activation uint16 QDQ |
 | AIMET QuantSim PTQ | A8W16, calib64 | 0.5347 | 0.4074 | 0.3843 | -0.0128 | opset 21, weight int16 QDQ |
 | AIMET QuantSim PTQ | A16W16, calib64 | 0.5374 | 0.4170 | 0.3952 | -0.0019 | opset 21 |
@@ -102,6 +104,7 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 | B | no-AIMET naive ONNX INT8 | 389/593 | 1/1 | 102/102 | 102/102 | 102/102 | 102/102 | 59 | `29d4343971e6dc8609631ba302101634ce96e38e023accb4077402333a056d34` |
 | C | AIMET QuantSim PTQ | 397/397 | 0/1 | 68/102 | 102/102 | 102/102 | 0/102 | 0 | `37ddc7829f1d23504762626bb9adae5511607d2a1a7218ea5d0f3d0a58180a95` |
 | D | AIMET CLE + QuantSim | 397/397 | 0/1 | 68/102 | 102/102 | 102/102 | 0/102 | 0 | `00c59e859fe38d2554299d54b1c4ceb670306b8bbb84387540d0fb0ff00b2136` |
+| D1024 | AIMET CLE + QuantSim, calib1024 | 397/397 | 0/1 | 68/102 | 102/102 | 102/102 | 0/102 | 0 | `3c03a1ed761b649c029c3336b481d090625e18448d07ba92601896478049778d` |
 | E | AIMET AdaRound + QuantSim | 397/397 | 0/1 | 68/102 | 102/102 | 102/102 | 0/102 | 0 | `00757f981c03df09f94f1fa7239211f71b6a0ce60627ef17218055ca187a380c` |
 
 `Conv weight QDQ`는 accuracy evaluation에서 weight가 QDQ 경로를 통과한다는 의미입니다. `Conv weight INT storage`는 ONNX 파일 안의 Conv weight가 int8 initializer로 저장됐는지를 따로 표시합니다. 현재 AIMET C/D/E는 weight storage까지 접힌 배포 최적화 모델이 아니라 QDQ accuracy-eval 모델입니다.
@@ -160,10 +163,11 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 - 실제 QDQ 기준 100장 빠른 검증에서는 AdaRound smoke가 C/D보다 가장 높은 mAP50-95를 보였습니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화한 첫 시도는 sample20 기준 mAP가 0으로 떨어졌습니다.
 - B는 input/output/postprocess와 weight storage까지 더 공격적으로 양자화한 반면, C/D/E는 output/postprocess를 float로 남기고 weight storage도 FP32입니다. 정확도 비교와 배포 효율 비교를 분리해야 합니다.
-- full COCO 기준으로 A8W8 calib64는 FP32 대비 -0.0231 mAP50-95였고, calib1024는 -0.0184까지 소폭 회복했습니다. A16W16은 -0.0019까지 회복했습니다.
+- full COCO 기준으로 A8W8 calib64는 FP32 대비 -0.0231 mAP50-95였고, QuantSim calib1024는 -0.0184, CLE calib1024는 -0.0183까지 소폭 회복했습니다. CLE와 QuantSim calib1024의 차이는 +0.0001에 그쳤습니다. A16W16은 -0.0019까지 회복했습니다.
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample500/full에서는 A16W16이 FP32에 가장 가까웠지만, 단일 축 비교에서는 A16W8이 A8W16보다 높아 activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상이었습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 별도의 packed/EP 친화 export 경로가 필요합니다.
+- CLE calib1024 full 실행 로그에서는 BatchNorm 없는 모델이라 high-bias folding이 지원되지 않는다는 AIMET 경고가 나왔습니다. 이 구조에서는 CLE가 QuantSim 단독 대비 큰 개선을 주기 어렵습니다.
 - AdaRound는 작은 smoke 설정으로 API와 export 경로를 확인했습니다. 정식 비교는 기본 또는 충분한 iteration으로 다시 평가해야 합니다.
