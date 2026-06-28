@@ -26,6 +26,14 @@ DEFAULT_MODELS = [
     ),
 ]
 
+OPTIONAL_MODELS = [
+    (
+        "G",
+        "ort_qoperator_conv_int8",
+        "results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx",
+    ),
+]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -66,7 +74,15 @@ def main() -> int:
     results_dir = resolve_project_path(config["paths"]["results_dir"])
     output_csv = resolve_project_path(args.output_csv) if args.output_csv else results_dir / "quantization_coverage.csv"
     output_json = resolve_project_path(args.output_json) if args.output_json else results_dir / "quantization_coverage.json"
-    model_specs = [parse_model_spec(spec) for spec in args.model] if args.model else DEFAULT_MODELS
+    if args.model:
+        model_specs = [parse_model_spec(spec) for spec in args.model]
+    else:
+        model_specs = list(DEFAULT_MODELS)
+        model_specs.extend(
+            (experiment_id, experiment_name, model_path)
+            for experiment_id, experiment_name, model_path in OPTIONAL_MODELS
+            if resolve_project_path(model_path).exists()
+        )
 
     rows = []
     for experiment_id, experiment_name, model_path in model_specs:

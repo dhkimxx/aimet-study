@@ -21,6 +21,7 @@
 | AdaRound 중간 설정의 회복폭은 작음 | sample500 A8W8 QuantSim 0.4012, AdaRound calib256 adar128 iter2000 0.4036, FP32 0.4203 |
 | activation이 weight보다 민감 | full COCO A16W8 0.3923, A8W16 0.3843, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
+| ORT QOperator Conv-only도 ORT CUDA 배포 후보가 아님 | QLinearConv 102개, Conv weight INT storage 102/102, size 2.757MB지만 sample500 0.3486, model-only 32.40ms |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
 | Head 내부 우선 후보는 `cv3` branch | sample500 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024 |
 
@@ -81,7 +82,16 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 | 층 | 목적 | 산출물 |
 | --- | --- | --- |
 | Accuracy analysis | AIMET PTQ가 어디서 손실을 내는지 분석 | QDQ ONNX, coverage, sensitivity |
-| Deployment analysis | 실제 속도/메모리 이득 검증 | TensorRT/QNN/ORT quantized-op export 후보 |
+| Deployment analysis | 실제 속도/메모리 이득 검증 | ORT QOperator probe 완료, TensorRT/QNN/target EP export 후보 |
+
+완료한 ORT QOperator probe:
+
+```bash
+scripts/run_native.sh python scripts/12_eval_ort_qoperator_int8.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --name ort_qoperator_conv_int8
+scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G --experiment-name ort_qoperator_conv_int8_latency --model results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
+```
+
+결과: QLinearConv 102개, Conv weight INT storage 102/102, 모델 크기 2.757MB로 packed storage는 확인했습니다. 그러나 sample500 mAP50-95는 0.3486이고 model-only latency는 32.40ms라 FP32 및 AIMET A8W8 QDQ보다 불리했습니다.
 
 ## 최종 산출물 구조
 

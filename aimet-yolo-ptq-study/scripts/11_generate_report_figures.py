@@ -72,6 +72,7 @@ COVERAGE_MODELS = [
     ("aimet_quantsim_ptq", "A8W8 QDQ", "#596fb7"),
     ("aimet_cle_ptq", "CLE QDQ", "#4b8b3b"),
     ("aimet_adaround_ptq", "AdaRound smoke", "#7a5ca8"),
+    ("ort_qoperator_conv_int8", "ORT QOperator", "#2f6f73"),
 ]
 
 
@@ -104,6 +105,13 @@ def as_float(row: dict[str, str], field: str) -> float:
     if value == "":
         raise ValueError(f"Missing numeric field {field!r} in row {row!r}")
     return float(value)
+
+
+def as_float_with_fallback(row: dict[str, str], field: str, fallback: str) -> float:
+    value = row.get(field, "")
+    if value != "":
+        return float(value)
+    return as_float(row, fallback)
 
 
 def esc(value: object) -> str:
@@ -261,28 +269,33 @@ def draw_activation_sensitivity(rows: dict[str, dict[str, str]], output_dir: Pat
 
 
 def draw_qdq_storage_coverage(rows: dict[str, dict[str, str]], output_dir: Path) -> Path:
-    width, height = 960, 430
+    width, height = 960, 500
     left, top, plot_width = 190, 80, 610
     group_h, bar_h = 62, 22
     x_max = 100.0
     body = [
-        '<rect width="960" height="430" fill="#ffffff"/>',
-        '<text x="40" y="36" class="title">Conv weight QDQ vs storage</text>',
-        '<text x="40" y="58" class="subtitle">QDQ coverage can be 100% while initializer storage remains FP32</text>',
+        '<rect width="960" height="500" fill="#ffffff"/>',
+        '<text x="40" y="36" class="title">Conv quantization vs storage</text>',
+        '<text x="40" y="58" class="subtitle">QDQ can keep FP32 storage; QOperator can store int8 weights</text>',
     ]
     for tick in [0, 25, 50, 75, 100]:
         x = left + tick / x_max * plot_width
         body.append(f'<line x1="{x:.1f}" y1="{top - 12}" x2="{x:.1f}" y2="{height - 62}" class="grid"/>')
         body.append(f'<text x="{x:.1f}" y="{height - 38}" text-anchor="middle" class="axis">{tick}%</text>')
-    for index, (name, label, color) in enumerate(COVERAGE_MODELS):
+    available_models = [
+        (name, label, color)
+        for name, label, color in COVERAGE_MODELS
+        if name in rows
+    ]
+    for index, (name, label, color) in enumerate(available_models):
         row = rows[name]
         y = top + index * group_h
-        qdq = as_float(row, "conv_weight_qdq_pct")
-        storage = as_float(row, "conv_weight_int_storage_pct")
+        qdq = as_float_with_fallback(row, "effective_conv_quantized_pct", "conv_weight_qdq_pct")
+        storage = as_float_with_fallback(row, "effective_conv_int_storage_pct", "conv_weight_int_storage_pct")
         body.append(f'<text x="40" y="{y + 27}" class="label">{esc(label)}</text>')
         body.append(f'<rect x="{left}" y="{y}" width="{qdq / x_max * plot_width:.1f}" height="{bar_h}" rx="3" fill="{color}"/>')
         body.append(f'<rect x="{left}" y="{y + 28}" width="{storage / x_max * plot_width:.1f}" height="{bar_h}" rx="3" fill="#d1a84d"/>')
-        body.append(f'<text x="{left + qdq / x_max * plot_width + 8:.1f}" y="{y + 16}" class="value">QDQ {qdq:.0f}%</text>')
+        body.append(f'<text x="{left + qdq / x_max * plot_width + 8:.1f}" y="{y + 16}" class="value">Quantized {qdq:.0f}%</text>')
         body.append(
             f'<text x="{left + max(storage / x_max * plot_width, 2) + 8:.1f}" y="{y + 44}" class="value">'
             f'INT storage {storage:.0f}%</text>'

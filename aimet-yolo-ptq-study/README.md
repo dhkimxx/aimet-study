@@ -70,6 +70,8 @@ aimet-yolo-ptq-study/
     08_benchmark_latency.py
     09_quantization_coverage.py
     10_activation_sensitivity.py
+    11_generate_report_figures.py
+    12_eval_ort_qoperator_int8.py
   src/
     aimet_yolo_study/
 ```
@@ -111,7 +113,8 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 7. AIMET QuantSim PTQ를 실행합니다.
 8. AIMET CLE, AdaRound, AutoQuant 실험을 순서대로 실행합니다.
 9. model-only와 end-to-end 레이턴시를 측정합니다.
-10. `reports/aimet_ptq_study.md`에 지표와 해석을 기록합니다.
+10. QDQ accuracy 모델과 packed/QOperator 배포 후보를 분리해서 확인합니다.
+11. `reports/aimet_ptq_study.md`에 지표와 해석을 기록합니다.
 
 ## 실험 자산 준비
 
@@ -200,6 +203,13 @@ scripts/run_native.sh python -c "import onnx; from collections import Counter; m
 scripts/run_native.sh python scripts/09_quantization_coverage.py
 ```
 
+QDQ 모델과 별도로 ONNX Runtime `QOperator` 형식의 Conv-only packed INT8 후보도 만들 수 있습니다. 이 경로는 AIMET이 아니라 ORT static quantization 기준이며, Conv weight가 실제 int8 initializer로 저장되는지와 ORT CUDA에서 latency 이득이 있는지를 확인하기 위한 배포성 probe입니다.
+
+```bash
+scripts/run_native.sh python scripts/12_eval_ort_qoperator_int8.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --name ort_qoperator_conv_int8
+scripts/run_native.sh python scripts/09_quantization_coverage.py --model G=ort_qoperator_conv_int8=results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx --output-csv results/quantization_coverage_qoperator.csv --output-json results/quantization_coverage_qoperator.json
+```
+
 AIMET QuantSim/CLE/AdaRound 스크립트는 activation/weight bitwidth를 CLI에서 바꿀 수 있습니다. 기본값은 `configs/quantization.yaml`의 A8W8이며, 8/8은 기존 파일명 호환을 위해 `int8` tag를 유지합니다. 16비트 QDQ ONNX는 `QuantizeLinear`/`DequantizeLinear` 타입 제약 때문에 opset 21로 변환됩니다.
 
 ```bash
@@ -233,6 +243,7 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 ```bash
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id A --experiment-name fp32_onnx --device 0
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id B --experiment-name naive_onnx_int8 --model results/models/yolo26n_pretrained.naive_int8.onnx --device 0
+scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G --experiment-name ort_qoperator_conv_int8_latency --model results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
 ```
 
 리포트 figure는 기존 CSV 결과에서 재생성합니다. 산출물은 `reports/figures/`에 저장됩니다.

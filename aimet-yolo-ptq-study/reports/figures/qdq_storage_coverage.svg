@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="500" viewBox="0 0 960 500" role="img">
 
   <style>
     text { font-family: Arial, Helvetica, sans-serif; fill: #1f252b; }
@@ -10,38 +10,43 @@
     .grid { stroke: #d9dee3; stroke-width: 1; }
     .axis-line { stroke: #6b747c; stroke-width: 1.2; }
   </style>
-<rect width="960" height="430" fill="#ffffff"/>
-<text x="40" y="36" class="title">Conv weight QDQ vs storage</text>
-<text x="40" y="58" class="subtitle">QDQ coverage can be 100% while initializer storage remains FP32</text>
-<line x1="190.0" y1="68" x2="190.0" y2="368" class="grid"/>
-<text x="190.0" y="392" text-anchor="middle" class="axis">0%</text>
-<line x1="342.5" y1="68" x2="342.5" y2="368" class="grid"/>
-<text x="342.5" y="392" text-anchor="middle" class="axis">25%</text>
-<line x1="495.0" y1="68" x2="495.0" y2="368" class="grid"/>
-<text x="495.0" y="392" text-anchor="middle" class="axis">50%</text>
-<line x1="647.5" y1="68" x2="647.5" y2="368" class="grid"/>
-<text x="647.5" y="392" text-anchor="middle" class="axis">75%</text>
-<line x1="800.0" y1="68" x2="800.0" y2="368" class="grid"/>
-<text x="800.0" y="392" text-anchor="middle" class="axis">100%</text>
+<rect width="960" height="500" fill="#ffffff"/>
+<text x="40" y="36" class="title">Conv quantization vs storage</text>
+<text x="40" y="58" class="subtitle">QDQ can keep FP32 storage; QOperator can store int8 weights</text>
+<line x1="190.0" y1="68" x2="190.0" y2="438" class="grid"/>
+<text x="190.0" y="462" text-anchor="middle" class="axis">0%</text>
+<line x1="342.5" y1="68" x2="342.5" y2="438" class="grid"/>
+<text x="342.5" y="462" text-anchor="middle" class="axis">25%</text>
+<line x1="495.0" y1="68" x2="495.0" y2="438" class="grid"/>
+<text x="495.0" y="462" text-anchor="middle" class="axis">50%</text>
+<line x1="647.5" y1="68" x2="647.5" y2="438" class="grid"/>
+<text x="647.5" y="462" text-anchor="middle" class="axis">75%</text>
+<line x1="800.0" y1="68" x2="800.0" y2="438" class="grid"/>
+<text x="800.0" y="462" text-anchor="middle" class="axis">100%</text>
 <text x="40" y="107" class="label">Naive INT8</text>
 <rect x="190" y="80" width="610.0" height="22" rx="3" fill="#8c3b3b"/>
 <rect x="190" y="108" width="610.0" height="22" rx="3" fill="#d1a84d"/>
-<text x="808.0" y="96" class="value">QDQ 100%</text>
+<text x="808.0" y="96" class="value">Quantized 100%</text>
 <text x="808.0" y="124" class="value">INT storage 100%</text>
 <text x="40" y="169" class="label">A8W8 QDQ</text>
 <rect x="190" y="142" width="610.0" height="22" rx="3" fill="#596fb7"/>
 <rect x="190" y="170" width="0.0" height="22" rx="3" fill="#d1a84d"/>
-<text x="808.0" y="158" class="value">QDQ 100%</text>
+<text x="808.0" y="158" class="value">Quantized 100%</text>
 <text x="200.0" y="186" class="value">INT storage 0%</text>
 <text x="40" y="231" class="label">CLE QDQ</text>
 <rect x="190" y="204" width="610.0" height="22" rx="3" fill="#4b8b3b"/>
 <rect x="190" y="232" width="0.0" height="22" rx="3" fill="#d1a84d"/>
-<text x="808.0" y="220" class="value">QDQ 100%</text>
+<text x="808.0" y="220" class="value">Quantized 100%</text>
 <text x="200.0" y="248" class="value">INT storage 0%</text>
 <text x="40" y="293" class="label">AdaRound smoke</text>
 <rect x="190" y="266" width="610.0" height="22" rx="3" fill="#7a5ca8"/>
 <rect x="190" y="294" width="0.0" height="22" rx="3" fill="#d1a84d"/>
-<text x="808.0" y="282" class="value">QDQ 100%</text>
+<text x="808.0" y="282" class="value">Quantized 100%</text>
 <text x="200.0" y="310" class="value">INT storage 0%</text>
-<line x1="190" y1="368" x2="800" y2="368" class="axis-line"/>
+<text x="40" y="355" class="label">ORT QOperator</text>
+<rect x="190" y="328" width="610.0" height="22" rx="3" fill="#2f6f73"/>
+<rect x="190" y="356" width="610.0" height="22" rx="3" fill="#d1a84d"/>
+<text x="808.0" y="344" class="value">Quantized 100%</text>
+<text x="808.0" y="372" class="value">INT storage 100%</text>
+<line x1="190" y1="438" x2="800" y2="438" class="axis-line"/>
 </svg>

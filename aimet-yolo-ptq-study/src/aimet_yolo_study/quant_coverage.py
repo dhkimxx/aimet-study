@@ -30,6 +30,9 @@ def analyze_quantization_coverage(model_path: Path, experiment_id: str, experime
     }
 
     conv_nodes = [node for node in graph.node if node.op_type == "Conv"]
+    qlinearconv_nodes = [node for node in graph.node if node.op_type == "QLinearConv"]
+    convinteger_nodes = [node for node in graph.node if node.op_type == "ConvInteger"]
+    qoperator_conv_nodes = qlinearconv_nodes + convinteger_nodes
     conv_input_qdq_count = sum(
         _is_dequantized_tensor(node.input[0], node_by_output) for node in conv_nodes if node.input
     )
@@ -46,6 +49,13 @@ def analyze_quantization_coverage(model_path: Path, experiment_id: str, experime
     ]
     conv_weight_int_storage_count = conv_weight_storage.count("int")
     conv_weight_float_storage_count = conv_weight_storage.count("float")
+    qoperator_conv_weight_storage = [
+        _qoperator_conv_weight_storage_kind(node, initializers) for node in qoperator_conv_nodes
+    ]
+    qoperator_conv_weight_int_storage_count = qoperator_conv_weight_storage.count("int")
+    effective_conv_total = len(conv_nodes) + len(qoperator_conv_nodes)
+    effective_conv_quantized_count = conv_weight_qdq_count + len(qoperator_conv_nodes)
+    effective_conv_int_storage_count = conv_weight_int_storage_count + qoperator_conv_weight_int_storage_count
 
     model23_qdq_tensors = {name for name in qdq_tensor_names if name.startswith("/model.23/")}
     model23_conv_qdq_tensors = {
@@ -90,6 +100,18 @@ def analyze_quantization_coverage(model_path: Path, experiment_id: str, experime
         "initializer_int16_count": initializer_dtype_counts[onnx.TensorProto.INT16],
         "initializer_uint16_count": initializer_dtype_counts[onnx.TensorProto.UINT16],
         "initializer_int32_count": initializer_dtype_counts[onnx.TensorProto.INT32],
+        "qlinearconv_count": len(qlinearconv_nodes),
+        "convinteger_count": len(convinteger_nodes),
+        "qoperator_conv_count": len(qoperator_conv_nodes),
+        "qoperator_conv_weight_int_storage_count": qoperator_conv_weight_int_storage_count,
+        "qoperator_conv_weight_int_storage_pct": _pct(
+            qoperator_conv_weight_int_storage_count,
+            len(qoperator_conv_nodes),
+        ),
+        "effective_conv_quantized_count": effective_conv_quantized_count,
+        "effective_conv_int_storage_count": effective_conv_int_storage_count,
+        "effective_conv_quantized_pct": _pct(effective_conv_quantized_count, effective_conv_total),
+        "effective_conv_int_storage_pct": _pct(effective_conv_int_storage_count, effective_conv_total),
         "encodings_sidecar_exists": model_path.with_suffix(".encodings").exists(),
     }
     row["coverage_note"] = _coverage_note(row)
@@ -148,6 +170,34 @@ def _conv_weight_storage_kind(
     return "other"
 
 
+def _qoperator_conv_weight_storage_kind(
+    node: onnx.NodeProto,
+    initializers: dict[str, onnx.TensorProto],
+) -> str:
+    if node.op_type == "QLinearConv":
+        weight_index = 3
+    elif node.op_type == "ConvInteger":
+        weight_index = 1
+    else:
+        return "other"
+    if len(node.input) <= weight_index:
+        return "other"
+
+    initializer = initializers.get(node.input[weight_index])
+    if initializer is None:
+        return "other"
+    if initializer.data_type in {
+        onnx.TensorProto.INT8,
+        onnx.TensorProto.UINT8,
+        onnx.TensorProto.INT16,
+        onnx.TensorProto.UINT16,
+    }:
+        return "int"
+    if initializer.data_type == onnx.TensorProto.FLOAT:
+        return "float"
+    return "other"
+
+
 def _initializer_dtype(
     tensor_name: str,
     node_by_output: dict[str, onnx.NodeProto],
@@ -181,6 +231,8 @@ def _default_opset(model: onnx.ModelProto) -> int | None:
 
 
 def _coverage_note(row: dict[str, object]) -> str:
+    if row.get("qoperator_conv_count", 0):
+        return "qoperator_quantized_conv"
     if row["quantize_linear_nodes"] == 0 and row["dequantize_linear_nodes"] == 0:
         if row["encodings_sidecar_exists"]:
             return "encodings_sidecar_only_not_ort_int8"

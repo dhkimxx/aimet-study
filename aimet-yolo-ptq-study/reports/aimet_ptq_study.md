@@ -112,6 +112,14 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 
 `Conv weight QDQ`는 accuracy evaluation에서 weight가 QDQ 경로를 통과한다는 의미입니다. `Conv weight INT storage`는 ONNX 파일 안의 Conv weight가 int8 initializer로 저장됐는지를 따로 표시합니다. 현재 AIMET C/D/E는 weight storage까지 접힌 배포 최적화 모델이 아니라 QDQ accuracy-eval 모델입니다.
 
+별도 배포성 probe로 ORT QOperator Conv-only 모델도 확인했습니다. 이 모델은 AIMET 결과가 아니라 ONNX Runtime static quantization 결과입니다.
+
+| ID | 실험 | Q/DQ | QLinearConv | Conv weight INT storage | Effective Conv INT storage | 모델 크기 MB | sample500 mAP50-95 | 모델 SHA256 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| G | ORT QOperator Conv-only INT8 | 92/102 | 102 | 102/102 | 100% | 2.757 | 0.3486 | `6ba6f634b561936e310c483b67c558ac982cd8dd77090c2393cb5d86f7fd21ea` |
+
+해석: G는 실제 packed int8 weight storage를 가진 산출물이지만, sample500 mAP50-95가 AIMET A8W8 QDQ 0.4012보다 낮습니다. 따라서 weight storage만 int8로 접혔다고 정확도와 runtime이 자동으로 좋아지는 것은 아닙니다.
+
 ## 레이턴시 결과
 
 아래 값은 `scripts/08_benchmark_latency.py`로 같은 WSL2 native CUDAExecutionProvider 환경에서 측정했습니다. 각 모델은 warmup 20회, measured 100회, end-to-end 입력 이미지 32장 조건입니다.
@@ -125,8 +133,9 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 | C | AIMET QuantSim PTQ | A8W16 QDQ | 101.40 | 121.84 | 119.97 | 151.82 | ORT Memcpy 817개 |
 | C | AIMET QuantSim PTQ | A16W16 QDQ | 110.23 | 132.79 | 119.68 | 147.78 | ORT Memcpy 817개 |
 | S | Sensitivity | A8W8, all activations float, weight QDQ only | 7.19 | 8.65 | 13.49 | 15.27 | activation QDQ 제거 |
+| G | ORT QOperator INT8 | Conv-only QLinearConv | 32.40 | 48.30 | 43.97 | 62.05 | packed INT8, ORT Memcpy 194개 |
 
-해석: 현재 ONNX Runtime CUDA에서 QDQ accuracy-eval 모델은 FP32보다 빠르지 않습니다. 특히 16비트 QDQ는 정확도 회복에는 유용하지만 latency가 100ms대로 올라가므로 배포 후보가 아닙니다. 반대로 activation QDQ를 제거하고 weight QDQ만 남기면 latency가 FP32에 가까워져, 정확도 손실과 runtime overhead 모두 activation QDQ가 핵심 병목임을 뒷받침합니다.
+해석: 현재 ONNX Runtime CUDA에서 QDQ accuracy-eval 모델은 FP32보다 빠르지 않습니다. 특히 16비트 QDQ는 정확도 회복에는 유용하지만 latency가 100ms대로 올라가므로 배포 후보가 아닙니다. 반대로 activation QDQ를 제거하고 weight QDQ만 남기면 latency가 FP32에 가까워져, 정확도 손실과 runtime overhead 모두 activation QDQ가 핵심 병목임을 뒷받침합니다. ORT QOperator Conv-only는 packed INT8 storage를 만들었지만 model-only 32.40ms로 더 느려, 이 환경에서는 배포 후보가 아니라 target runtime별 추가 검증 대상입니다.
 
 ## 그림 산출물
 
@@ -135,7 +144,7 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 - `reports/figures/full_accuracy.svg`: full COCO mAP50-95 비교
 - `reports/figures/accuracy_latency_pareto.svg`: 정확도와 model-only latency 관계
 - `reports/figures/activation_sensitivity.svg`: activation QDQ 제거 민감도
-- `reports/figures/qdq_storage_coverage.svg`: Conv weight QDQ와 INT storage 차이
+- `reports/figures/qdq_storage_coverage.svg`: Conv 양자화 경로와 INT storage 차이
 
 ## 메모리 결과
 
@@ -172,6 +181,7 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
-- Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상이었습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 별도의 packed/EP 친화 export 경로가 필요합니다.
+- ORT QOperator Conv-only는 QLinearConv 102개와 Conv weight INT storage 102/102를 만들었지만, sample500 mAP50-95 0.3486 및 model-only 32.40ms로 AIMET A8W8 QDQ보다 나빴습니다.
+- Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 다시 확인해야 합니다.
 - CLE calib1024 full 실행 로그에서는 BatchNorm 없는 모델이라 high-bias folding이 지원되지 않는다는 AIMET 경고가 나왔습니다. 이 구조에서는 CLE가 QuantSim 단독 대비 큰 개선을 주기 어렵습니다.
 - AdaRound는 smoke와 중간 설정까지 확인했습니다. full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가는 아직 남아 있습니다.
