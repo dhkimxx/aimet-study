@@ -1,6 +1,6 @@
 # AIMET YOLO PTQ 빠른 검증 결과
 
-작성일: 2026-06-21
+작성일: 2026-06-28
 
 이 문서는 COCO 전체 평가 전에 `--eval-samples 100`으로 실행한 빠른 검증 결과, 핵심 후보를 `--eval-samples 500`으로 확대한 결과, 그리고 full COCO val에서 확인한 핵심 결과를 정리합니다. 목적은 no-AIMET INT8과 AIMET 기반 PTQ 경로가 실제로 어떤 차이를 보이는지 재현 가능한 숫자로 확인하는 것입니다.
 
@@ -64,6 +64,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 8 --name aimet_quantsim_a16w8_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 8 --weight-bitwidth 16 --name aimet_quantsim_a8w16_gpu
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
+scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch 1 --calibration-samples 256 --adaround-samples 128 --adaround-iterations 2000 --eval-samples 500 --name aimet_adaround_a8w8_adar128_iter2000_gpu --force
 ```
 
 정확도:
@@ -76,8 +77,9 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | AIMET QuantSim PTQ | A16W8, calib64, sample500 | CUDA | 0.4143 | 0.5666 | 0.4496 | 0.6648 | 0.5158 | -0.0060 |
 | AIMET QuantSim PTQ | A8W16, calib64, sample500 | CUDA | 0.4074 | 0.5580 | 0.4465 | 0.6467 | 0.5093 | -0.0130 |
 | AIMET QuantSim PTQ | A16W16, calib64, sample500 | CUDA | 0.4170 | 0.5663 | 0.4495 | 0.6543 | 0.5142 | -0.0033 |
+| AIMET AdaRound + QuantSim | A8W8, calib256, adar128, iter2000, sample500 | CUDA | 0.4036 | 0.5594 | 0.4386 | 0.6466 | 0.5177 | -0.0167 |
 
-해석: naive INT8의 mAP 0 붕괴는 sample500에서도 그대로 재현됩니다. A8W8 QDQ는 FP32 대비 -0.0191 mAP50-95로 정확도를 유지하지만 완전한 복원은 아닙니다. 16비트 조합은 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8이 A8W16보다 더 크게 회복합니다. 따라서 sample500에서도 activation bitwidth를 올리는 효과가 weight bitwidth를 올리는 효과보다 큽니다.
+해석: naive INT8의 mAP 0 붕괴는 sample500에서도 그대로 재현됩니다. A8W8 QDQ는 FP32 대비 -0.0191 mAP50-95로 정확도를 유지하지만 완전한 복원은 아닙니다. AdaRound 중간 설정은 A8W8 QuantSim보다 +0.0025 mAP50-95 높아 weight rounding 최적화 효과가 작게 보였지만, A8W16 0.4074, A16W8 0.4143, A16W16 0.4170에는 못 미쳤습니다. 16비트 조합은 A16W16이 FP32에 가장 가깝고, 단일 축 비교에서는 A16W8이 A8W16보다 더 크게 회복합니다. 따라서 sample500에서도 activation bitwidth를 올리는 효과가 weight bitwidth를 올리는 효과보다 큽니다.
 
 ## full COCO val 확인
 
@@ -135,6 +137,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | A8W8 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
 | A8W8 calib1024 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
 | CLE A8W8 calib1024 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
+| AdaRound A8W8 calib256 adar128 iter2000 | 17 | 397/397 | 102/102 | 0/102 | 102 | 295 | 0 | 0 | 9.786 |
 | A16W8 | 21 | 397/397 | 102/102 | 0/102 | 102 | 0 | 0 | 295 | 9.882 |
 | A8W16 | 21 | 397/397 | 102/102 | 0/102 | 0 | 295 | 102 | 0 | 9.890 |
 | A16W16 | 21 | 397/397 | 102/102 | 0/102 | 0 | 0 | 102 | 295 | 9.890 |
@@ -235,6 +238,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 | D | `00c59e859fe38d2554299d54b1c4ceb670306b8bbb84387540d0fb0ff00b2136` | AIMET QDQ |
 | D1024 | `3c03a1ed761b649c029c3336b481d090625e18448d07ba92601896478049778d` | AIMET CLE calib1024 QDQ |
 | E | `00757f981c03df09f94f1fa7239211f71b6a0ce60627ef17218055ca187a380c` | AIMET QDQ |
+| E128 | `e24021f3a68720a4550fe769feca7b2d639798d5c8e4c46830fb829cc3c07d85` | AIMET AdaRound calib256 adar128 iter2000 QDQ |
 
 ## 해석
 
@@ -243,7 +247,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - AIMET QuantSim PTQ를 실제 QDQ ONNX로 평가하면 full COCO 기준 A8W8 calib64는 FP32 대비 mAP50-95가 0.0231 낮았습니다. 그래도 naive ONNX INT8처럼 완전히 붕괴하지는 않았습니다.
 - Calibration sample을 64장에서 1024장으로 늘린 A8W8은 full COCO mAP50-95가 0.3740에서 0.3787로 올랐습니다. 회복폭이 +0.0047이라 calibration 부족만으로 A8W8 손실을 설명하기는 어렵습니다.
 - CLE + QuantSim은 sample100에서는 QuantSim 단독보다 약간 낮았고, full COCO calib1024에서는 QuantSim calib1024와 사실상 같았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
-- AdaRound 결과는 `adaround-samples 8`, `iterations 50`의 smoke 설정입니다. 이 조건에서는 QuantSim/CLE보다 높은 mAP50-95를 보였지만, 정식 AdaRound 성능으로 보려면 sample과 iteration을 늘려 다시 평가해야 합니다.
+- AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. 개선은 있지만 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
@@ -251,7 +255,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 
 ## 다음 실험
 
-1. AdaRound는 충분한 sample과 iteration으로 sample500 이상에서 다시 실행합니다.
+1. AdaRound는 full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가로 중간 결과의 일반성을 확인합니다.
 2. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
 3. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
 4. AIMET QDQ 모델의 weight를 int8 initializer로 접는 deployment export 경로를 별도로 확인합니다.

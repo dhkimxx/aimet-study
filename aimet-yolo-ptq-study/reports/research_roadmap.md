@@ -18,6 +18,7 @@
 | --- | --- |
 | naive INT8은 공정한 성공 기준선이 아니라 실패 기준선 | full COCO mAP50-95 0.0000, postprocess/output까지 양자화 |
 | AIMET QDQ는 정확도를 유지하지만 배포 모델은 아님 | full COCO A8W8 calib64 0.3740, QuantSim calib1024 0.3787, CLE calib1024 0.3788 vs FP32 0.3971, Conv weight INT storage 0/102 |
+| AdaRound 중간 설정의 회복폭은 작음 | sample500 A8W8 QuantSim 0.4012, AdaRound calib256 adar128 iter2000 0.4036, FP32 0.4203 |
 | activation이 weight보다 민감 | full COCO A16W8 0.3923, A8W16 0.3843, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
@@ -38,7 +39,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch 1 --calibration-samples 64 --activation-bitwidth 16 --weight-bitwidth 16 --name aimet_quantsim_a16w16_gpu
 ```
 
-상태: 완료. sample500 표, full COCO 핵심 표, A8W8 calib1024 calibration ablation, CLE calib1024 ablation은 `reports/quick_ptq_results.md`, `reports/aimet_ptq_study.md`, `reports/paper_report.md`에 반영했습니다. AdaRound 정식 설정은 별도 P1 작업으로 남깁니다.
+상태: 완료. sample500 표, full COCO 핵심 표, A8W8 calib1024 calibration ablation, CLE calib1024 ablation, AdaRound 중간 설정은 `reports/quick_ptq_results.md`, `reports/aimet_ptq_study.md`, `reports/paper_report.md`에 반영했습니다. AdaRound full 설정은 별도 P1 작업으로 남깁니다.
 
 ### P0: Head activation 원인 분석
 
@@ -55,13 +56,23 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 
 ### P1: AdaRound 정식 비교
 
-Smoke 설정은 결론용으로 부족합니다.
+Smoke 설정은 결론용으로 부족합니다. 중간 설정은 완료했고, A8W8 대비 개선폭은 작았습니다.
+
+완료한 중간 설정:
+
+```bash
+scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch 1 --calibration-samples 256 --adaround-samples 128 --adaround-iterations 2000 --eval-samples 500 --name aimet_adaround_a8w8_adar128_iter2000_gpu --force
+```
+
+결과: sample500 mAP50-95 0.4036, A8W8 QuantSim 대비 +0.0025, FP32 대비 -0.0167. Coverage는 Q/DQ 397/397, Conv weight QDQ 102/102, Conv weight INT storage 0/102로 기존 AIMET A8W8 QDQ와 같습니다.
+
+남은 full 설정:
 
 ```bash
 scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch 1 --calibration-samples 256 --adaround-samples 256 --adaround-iterations 5000 --eval-samples 500 --force
 ```
 
-이 설정이 너무 오래 걸리면 `adaround-samples 128`, `iterations 2000`을 중간 지점으로 둡니다.
+완료 기준은 full 설정 또는 full COCO에서 AdaRound 개선폭이 A8W8/CLE/calib1024 및 16비트 activation 진단 결과와 비교해 의미 있는지 판단하는 것입니다.
 
 ### P1: Runtime/배포 경로 분리
 
