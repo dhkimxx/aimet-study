@@ -11,10 +11,35 @@ import numpy as np
 from aimet_yolo_study.images import preprocess_yolo_image
 
 
-def build_providers(device: str) -> list[object]:
-    if device.lower() == "cpu":
+def build_providers(
+    device: str,
+    provider: str = "cuda",
+    tensorrt_cache_path: str | Path | None = None,
+    tensorrt_fp16: bool = False,
+    tensorrt_int8: bool = False,
+) -> list[object]:
+    provider = provider.lower()
+    if device.lower() == "cpu" or provider == "cpu":
         return ["CPUExecutionProvider"]
     device_id = int(device)
+    if provider == "tensorrt":
+        options: dict[str, object] = {
+            "device_id": device_id,
+            "trt_engine_cache_enable": True,
+        }
+        if tensorrt_cache_path is not None:
+            options["trt_engine_cache_path"] = str(tensorrt_cache_path)
+        if tensorrt_fp16:
+            options["trt_fp16_enable"] = True
+        if tensorrt_int8:
+            options["trt_int8_enable"] = True
+        return [
+            ("TensorrtExecutionProvider", options),
+            ("CUDAExecutionProvider", {"device_id": device_id}),
+            "CPUExecutionProvider",
+        ]
+    if provider != "cuda":
+        raise ValueError(f"Unsupported provider {provider!r}; expected cuda, tensorrt, or cpu")
     return [("CUDAExecutionProvider", {"device_id": device_id}), "CPUExecutionProvider"]
 
 

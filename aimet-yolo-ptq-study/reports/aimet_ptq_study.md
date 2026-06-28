@@ -137,6 +137,8 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 
 해석: 현재 ONNX Runtime CUDA에서 QDQ accuracy-eval 모델은 FP32보다 빠르지 않습니다. 특히 16비트 QDQ는 정확도 회복에는 유용하지만 latency가 100ms대로 올라가므로 배포 후보가 아닙니다. 반대로 activation QDQ를 제거하고 weight QDQ만 남기면 latency가 FP32에 가까워져, 정확도 손실과 runtime overhead 모두 activation QDQ가 핵심 병목임을 뒷받침합니다. ORT QOperator Conv-only는 packed INT8 storage를 만들었지만 model-only 32.40ms로 더 느려, 이 환경에서는 배포 후보가 아니라 target runtime별 추가 검증 대상입니다.
 
+TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 `TensorrtExecutionProvider`가 있으나 현재 WSL2 환경에는 `libnvinfer.so.10`이 없어 실제 provider 로드가 실패합니다. latency 스크립트는 요청 provider가 활성화되지 않으면 실패하도록 보강했으므로, CUDA fallback 값을 TensorRT 결과로 기록하지 않습니다.
+
 ## 그림 산출물
 
 논문형 리포트 figure는 `scripts/11_generate_report_figures.py`로 기존 CSV에서 재생성합니다.
@@ -183,5 +185,6 @@ Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_sca
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
 - ORT QOperator Conv-only는 QLinearConv 102개와 Conv weight INT storage 102/102를 만들었지만, sample500 mAP50-95 0.3486 및 model-only 32.40ms로 AIMET A8W8 QDQ보다 나빴습니다.
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 다시 확인해야 합니다.
+- TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. provider fallback guard는 추가했습니다.
 - CLE calib1024 full 실행 로그에서는 BatchNorm 없는 모델이라 high-bias folding이 지원되지 않는다는 AIMET 경고가 나왔습니다. 이 구조에서는 CLE가 QuantSim 단독 대비 큰 개선을 주기 어렵습니다.
 - AdaRound는 smoke와 중간 설정까지 확인했습니다. full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가는 아직 남아 있습니다.

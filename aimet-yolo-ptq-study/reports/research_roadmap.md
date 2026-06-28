@@ -22,6 +22,7 @@
 | activation이 weight보다 민감 | full COCO A16W8 0.3923, A8W16 0.3843, sample100 all-activation-float 0.5440 |
 | ORT CUDA QDQ는 현재 latency 이득 없음 | FP32 6.16ms, A8W8 QDQ 14.77ms, 16비트 QDQ 100ms+ |
 | ORT QOperator Conv-only도 ORT CUDA 배포 후보가 아님 | QLinearConv 102개, Conv weight INT storage 102/102, size 2.757MB지만 sample500 0.3486, model-only 32.40ms |
+| TensorRT EP는 현재 환경에서 아직 실행 불가 | ORT provider 목록에는 보이지만 `libnvinfer.so.10` 누락으로 TensorRT 로드 실패, CUDA fallback 기록은 스크립트가 차단 |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
 | Head 내부 우선 후보는 `cv3` branch | sample500 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024 |
 
@@ -82,7 +83,7 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 | 층 | 목적 | 산출물 |
 | --- | --- | --- |
 | Accuracy analysis | AIMET PTQ가 어디서 손실을 내는지 분석 | QDQ ONNX, coverage, sensitivity |
-| Deployment analysis | 실제 속도/메모리 이득 검증 | ORT QOperator probe 완료, TensorRT/QNN/target EP export 후보 |
+| Deployment analysis | 실제 속도/메모리 이득 검증 | ORT QOperator probe 완료, TensorRT EP preflight 완료, TensorRT/QNN/target EP 측정 후보 |
 
 완료한 ORT QOperator probe:
 
@@ -92,6 +93,14 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G -
 ```
 
 결과: QLinearConv 102개, Conv weight INT storage 102/102, 모델 크기 2.757MB로 packed storage는 확인했습니다. 그러나 sample500 mAP50-95는 0.3486이고 model-only latency는 32.40ms라 FP32 및 AIMET A8W8 QDQ보다 불리했습니다.
+
+TensorRT EP preflight:
+
+```bash
+scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id T --experiment-name fp32_onnx_tensorrt --provider tensorrt --device 0 --warmup-runs 20 --measured-runs 100
+```
+
+결과: `TensorrtExecutionProvider`는 ORT provider 목록에 있지만, 현재 WSL2 환경에서 `libnvinfer.so.10`이 없어 실제 provider 로드가 실패했습니다. latency 스크립트는 요청 provider가 활성화되지 않으면 실패하므로 CUDA fallback 값을 TensorRT 결과로 기록하지 않습니다. 남은 작업은 TensorRT runtime library 설치 또는 해당 runtime이 포함된 별도 환경에서 FP32, A8W8 QDQ, QOperator 후보를 다시 측정하는 것입니다.
 
 ## 최종 산출물 구조
 
@@ -117,3 +126,4 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G -
 - [x] activation sensitivity figure
 - [x] deployment artifact 한계 명시
 - [x] 재현 명령과 환경 해시 정리
+- [x] TensorRT fallback 오기록 방지

@@ -246,6 +246,12 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id B -
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G --experiment-name ort_qoperator_conv_int8_latency --model results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
 ```
 
+기본 provider는 CUDA입니다. TensorRT EP를 검증할 때는 `--provider tensorrt`를 사용합니다. 스크립트는 요청한 provider가 실제 ONNX Runtime session provider에 포함되지 않으면 실패하므로, TensorRT가 CUDA로 fallback된 값을 TensorRT latency로 기록하지 않습니다.
+
+```bash
+scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id T --experiment-name fp32_onnx_tensorrt --provider tensorrt --device 0 --warmup-runs 20 --measured-runs 100
+```
+
 리포트 figure는 기존 CSV 결과에서 재생성합니다. 산출물은 `reports/figures/`에 저장됩니다.
 
 ```bash

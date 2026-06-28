@@ -280,10 +280,11 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 - G는 ORT QOperator Conv-only라 Conv weight storage가 실제 int8로 접혔지만 AIMET 결과가 아닙니다. packed storage와 작은 파일 크기는 얻었으나, sample500 정확도와 ORT CUDA latency가 모두 AIMET A8W8 QDQ보다 나빠 현재 배포 후보로 채택하지 않습니다.
+- TensorRT EP는 provider 목록에는 있으나 현재 환경에서 `libnvinfer.so.10`이 없어 실제 로드되지 않았습니다. fallback 값을 TensorRT latency로 기록하지 않도록 latency 스크립트에 provider guard를 추가했습니다.
 
 ## 다음 실험
 
 1. AdaRound는 full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가로 중간 결과의 일반성을 확인합니다.
 2. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
 3. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
-4. TensorRT, QNN, 또는 target EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.
+4. TensorRT runtime library 설치 후 TensorRT EP에서 FP32/A8W8 QDQ/QOperator 후보를 다시 측정하고, 이후 QNN 또는 target EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.

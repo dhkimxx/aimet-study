@@ -7,6 +7,7 @@
 | CLE calibration 확대 | CLE + QuantSim A8W8을 calibration 1024장, full COCO val로 재평가 | QuantSim A8W8 calib1024가 0.3787 mAP50-95였고, CLE calib1024는 0.3788로 사실상 동일했습니다. QDQ/storage coverage도 Q/DQ 397/397, Conv weight QDQ 102/102, Conv weight INT storage 0/102로 같습니다. 이 YOLO ONNX에는 BatchNorm이 없어 AIMET 로그가 high-bias folding 미지원을 명시했으므로, CLE 단독으로 A8W8 손실을 회복하기 어렵다고 판단합니다. |
 | AdaRound 중간 설정 | `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`으로 A8W8 AdaRound를 재평가 | mAP50-95는 0.4036으로 A8W8 QuantSim 0.4012보다 +0.0025 높았습니다. Coverage는 Q/DQ 397/397, Conv weight QDQ 102/102, Conv weight INT storage 0/102로 기존 A8W8 QDQ와 같습니다. 개선은 있으나 A8W16/A16W8/A16W16보다 작아, 현재 손실의 주원인은 weight rounding 단독이 아니라 activation QDQ 쪽이라고 판단합니다. |
 | ORT QOperator 배포 후보 | Conv-only QOperator INT8을 별도 probe로 평가하고 AIMET QDQ 정확도 분석과 분리 | QLinearConv 102개, Conv weight INT storage 102/102, 모델 크기 2.757MB로 packed artifact는 만들었습니다. 하지만 sample500 mAP50-95는 0.3486으로 AIMET A8W8 QDQ 0.4012보다 낮고, ORT CUDA model-only latency는 32.40ms로 FP32 6.16ms와 A8W8 QDQ 14.77ms보다 느렸습니다. 따라서 ORT CUDA 기준 추천 배포 후보가 아니며, TensorRT/QNN/EP 친화 export는 별도 검증해야 합니다. |
+| TensorRT EP preflight | latency 스크립트에 provider 선택과 fallback guard를 추가하고 TensorRT EP 로드를 확인 | ONNX Runtime provider 목록에는 `TensorrtExecutionProvider`가 보이지만, 실제 로드는 `libnvinfer.so.10` 누락으로 실패했습니다. 스크립트는 TensorRT가 CUDA로 fallback된 값을 TensorRT latency로 기록하지 않도록 요청 provider가 활성화되지 않으면 실패시킵니다. 현재 환경에서는 TensorRT runtime 설치 후 다시 측정해야 합니다. |
 
 ## 2026-06-21
 

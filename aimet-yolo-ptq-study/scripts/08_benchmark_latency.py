@@ -28,6 +28,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--experiment-id", default="A")
     parser.add_argument("--experiment-name", default="fp32_onnx")
     parser.add_argument("--device", default="0", help="ONNX Runtime device value, for example 0 or cpu.")
+    parser.add_argument("--provider", choices=["cuda", "tensorrt", "cpu"], default="cuda")
+    parser.add_argument("--trt-cache-dir", default=None, help="TensorRT engine cache directory.")
+    parser.add_argument("--trt-fp16", action="store_true", help="Enable TensorRT FP16 mode.")
+    parser.add_argument("--trt-int8", action="store_true", help="Enable TensorRT INT8 mode.")
+    parser.add_argument(
+        "--allow-provider-fallback",
+        action="store_true",
+        help="Record latency even if ONNX Runtime falls back from the requested provider.",
+    )
     parser.add_argument("--imgsz", type=int, default=None)
     parser.add_argument("--warmup-runs", type=int, default=None)
     parser.add_argument("--measured-runs", type=int, default=None)
@@ -68,8 +77,32 @@ def main() -> int:
     image_size = args.imgsz or int(model_config["input_shape"][-1])
     warmup_runs = args.warmup_runs or int(benchmark_config["warmup_runs"])
     measured_runs = args.measured_runs or int(benchmark_config["measured_runs"])
-    providers = build_providers(args.device)
+    trt_cache_dir = (
+        resolve_project_path(args.trt_cache_dir)
+        if args.trt_cache_dir
+        else results_dir / "tensorrt_cache" / args.experiment_name
+    )
+    if args.provider == "tensorrt":
+        trt_cache_dir.mkdir(parents=True, exist_ok=True)
+    providers = build_providers(
+        args.device,
+        provider=args.provider,
+        tensorrt_cache_path=trt_cache_dir,
+        tensorrt_fp16=args.trt_fp16,
+        tensorrt_int8=args.trt_int8,
+    )
     session = ort.InferenceSession(str(model_path), providers=providers)
+    active_providers = session.get_providers()
+    requested_provider = {
+        "cpu": "CPUExecutionProvider",
+        "cuda": "CUDAExecutionProvider",
+        "tensorrt": "TensorrtExecutionProvider",
+    }[args.provider]
+    if not args.allow_provider_fallback and requested_provider not in active_providers:
+        raise RuntimeError(
+            f"Requested {requested_provider}, but active providers are {active_providers}. "
+            "Use --allow-provider-fallback only when fallback latency is intentional."
+        )
     input_name = session.get_inputs()[0].name
     image_paths = load_manifest_images(calibration_manifest, args.e2e_images)
     input_tensor = preprocess_yolo_image(image_paths[0], image_size)
@@ -88,7 +121,7 @@ def main() -> int:
         "experiment_id": args.experiment_id,
         "experiment_name": args.experiment_name,
         "model_path": str(model_path),
-        "provider": ",".join(session.get_providers()),
+        "provider": ",".join(active_providers),
         "warmup_runs": warmup_runs,
         "measured_runs": measured_runs,
     }
@@ -98,6 +131,12 @@ def main() -> int:
 
     details = {
         "row": row,
+        "provider_request": {
+            "provider": args.provider,
+            "tensorrt_cache_dir": str(trt_cache_dir) if args.provider == "tensorrt" else None,
+            "tensorrt_fp16": args.trt_fp16,
+            "tensorrt_int8": args.trt_int8,
+        },
         "model_only_samples_ms": model_only,
         "end_to_end_samples_ms": end_to_end,
     }
