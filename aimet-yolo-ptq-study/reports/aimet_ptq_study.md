@@ -176,6 +176,7 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 - AIMET 실험은 QDQ ONNX로 다시 내보내 평가했습니다. `.encodings`만 있는 AIMET export를 ORT로 평가하면 INT8 결과가 아닙니다.
 - 실제 QDQ 기준 100장 빠른 검증에서는 AdaRound smoke가 C/D보다 가장 높은 mAP50-95를 보였습니다.
 - AdaRound 중간 설정(`calib256`, `adaround-samples 128`, `iterations 2000`)은 sample500 mAP50-95 0.4036으로 A8W8 QuantSim 0.4012보다 +0.0025 높았습니다. 하지만 A8W16/A16W8/A16W16보다 낮아, 현 손실의 주원인이 weight rounding 단독은 아니라는 결론을 강화합니다.
+- AdaRound full 설정(`adaround-samples 256`, `iterations 5000`) foreground run은 2026-06-28에 `121/406` 모듈, 약 30% 지점에서 산출물 없이 끊겼습니다. 이 값은 결과 표에 포함하지 않고, 이후에는 detached runner로만 재실행합니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화한 첫 시도는 sample20 기준 mAP가 0으로 떨어졌습니다.
 - B는 input/output/postprocess와 weight storage까지 더 공격적으로 양자화한 반면, C/D/E는 output/postprocess를 float로 남기고 weight storage도 FP32입니다. 정확도 비교와 배포 효율 비교를 분리해야 합니다.
 - full COCO 기준으로 A8W8 calib64는 FP32 대비 -0.0231 mAP50-95였고, QuantSim calib1024는 -0.0184, CLE calib1024는 -0.0183까지 소폭 회복했습니다. CLE와 QuantSim calib1024의 차이는 +0.0001에 그쳤습니다. A16W16은 -0.0019까지 회복했습니다.
@@ -187,4 +188,4 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 다시 확인해야 합니다.
 - TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. provider fallback guard는 추가했습니다.
 - CLE calib1024 full 실행 로그에서는 BatchNorm 없는 모델이라 high-bias folding이 지원되지 않는다는 AIMET 경고가 나왔습니다. 이 구조에서는 CLE가 QuantSim 단독 대비 큰 개선을 주기 어렵습니다.
-- AdaRound는 smoke와 중간 설정까지 확인했습니다. full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가는 아직 남아 있습니다.
+- AdaRound는 smoke와 중간 설정까지 확인했습니다. full 설정(`adaround-samples 256`, `iterations 5000`)은 detached runner로 재실행해야 하며, full COCO 평가는 아직 남아 있습니다.

@@ -193,8 +193,8 @@ Runtime 관점에서는 정확도와 배포 효율이 분리된다. AIMET QDQ는
 
 ## 한계
 
-1. AdaRound는 아직 full COCO 또는 full 설정(`adaround-samples 256`, `iterations 5000`)으로 재평가하지 않았다.
-2. 현재 AdaRound의 가장 강한 결과는 sample500 중간 설정(`calib256`, `adaround-samples 128`, `iterations 2000`)이다.
+1. AdaRound는 아직 full COCO 또는 완료된 full 설정(`adaround-samples 256`, `iterations 5000`)으로 재평가하지 않았다. 2026-06-28 foreground run은 약 30% 지점에서 산출물 없이 끊겨 결과로 사용하지 않는다.
+2. 현재 AdaRound의 가장 강한 완료 결과는 sample500 중간 설정(`calib256`, `adaround-samples 128`, `iterations 2000`)이다.
 3. CLE는 calib1024 full COCO로 재평가했지만, BatchNorm 없는 ONNX라 high-bias folding 효과를 검증할 수 없었다.
 4. 현재 AIMET QDQ 모델은 packed INT8 deployment artifact가 아니다.
 5. ORT QOperator Conv-only는 packed INT8 artifact이지만, ORT CUDA 기준 결과이므로 TensorRT/QNN 성능을 대변하지 않는다.
@@ -242,7 +242,7 @@ scripts/run_native.sh python scripts/11_generate_report_figures.py
 | --- | --- | --- |
 | P0 | full COCO val로 주요 정확도 재평가 | FP32, naive INT8, A8W8, CLE calib1024, 16비트 후보 완료. AdaRound full 설정은 P1로 분리 |
 | P0 | Head activation 후보 확대 검증 | sample500에서 `cv3`, `scale2`, final outputs 완료. 다음은 `cv3` 중심 per-layer/range 설정 |
-| P1 | AdaRound full 설정 | 중간 설정은 sample500 0.4036으로 완료. full 설정 또는 full COCO로 일반성 확인 |
+| P1 | AdaRound full 설정 | 중간 설정은 sample500 0.4036으로 완료. full 설정은 detached runner로 재실행하거나 기존 중간 산출물을 full COCO로 평가 |
 | P1 | Runtime 타깃 분리 | ORT CUDA QDQ, ORT QOperator Conv-only probe, TensorRT EP preflight 완료. TensorRT/QNN 실제 측정은 runtime 설치 후 남음 |
 | P2 | Figure 생성 | full accuracy, accuracy-latency Pareto, QDQ coverage, activation sensitivity bar chart 완료 |
 | P2 | 최종 원고 정리 | 초록, 방법, 결과, 논의, 한계, 재현성 체크리스트 완성 |

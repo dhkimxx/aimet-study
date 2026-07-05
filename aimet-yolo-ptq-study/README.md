@@ -191,6 +191,13 @@ sample500 중간 비교에는 다음 설정을 사용합니다. 이 설정은 RT
 scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch 1 --calibration-samples 256 --adaround-samples 128 --adaround-iterations 2000 --eval-samples 500 --name aimet_adaround_a8w8_adar128_iter2000_gpu --force
 ```
 
+full AdaRound 설정은 훨씬 오래 걸리며 interactive shell에서 끊기면 export 산출물이 남지 않을 수 있습니다. full 설정은 detached runner로 시작하고 `results/logs`의 로그와 `results/pids`의 PID를 기준으로 모니터링합니다.
+
+```bash
+scripts/13_run_adaround_full_detached.sh
+tail -f results/logs/aimet_adaround_a8w8_adar256_iter5000_gpu_*.log
+```
+
 AIMET ONNX 2.2.0의 public export는 `.encodings` 파일을 별도로 저장하고 ONNX에서 AIMET quantization 노드를 제거합니다. ONNX Runtime/Ultralytics 평가용 산출물은 반드시 `QuantizeLinear`/`DequantizeLinear` 노드가 들어 있는지 확인합니다.
 
 ```bash

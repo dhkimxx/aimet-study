@@ -68,10 +68,11 @@ scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch
 
 결과: sample500 mAP50-95 0.4036, A8W8 QuantSim 대비 +0.0025, FP32 대비 -0.0167. Coverage는 Q/DQ 397/397, Conv weight QDQ 102/102, Conv weight INT storage 0/102로 기존 AIMET A8W8 QDQ와 같습니다.
 
-남은 full 설정:
+남은 full 설정은 foreground에서 직접 실행하지 않습니다. 2026-06-28에 `adaround-samples 256`, `iterations 5000`, `sample500` foreground run을 시작했지만 `121/406` 모듈, 약 30%, 경과 52분 지점에서 산출물 없이 끊겼습니다. 같은 설정은 detached runner로 재시작해 로그와 PID를 남깁니다.
 
 ```bash
-scripts/run_native.sh python scripts/06_aimet_adaround_ptq.py --device 0 --batch 1 --calibration-samples 256 --adaround-samples 256 --adaround-iterations 5000 --eval-samples 500 --force
+scripts/13_run_adaround_full_detached.sh
+tail -f results/logs/aimet_adaround_a8w8_adar256_iter5000_gpu_*.log
 ```
 
 완료 기준은 full 설정 또는 full COCO에서 AdaRound 개선폭이 A8W8/CLE/calib1024 및 16비트 activation 진단 결과와 비교해 의미 있는지 판단하는 것입니다.

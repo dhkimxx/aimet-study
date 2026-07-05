@@ -274,7 +274,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - AIMET QuantSim PTQ를 실제 QDQ ONNX로 평가하면 full COCO 기준 A8W8 calib64는 FP32 대비 mAP50-95가 0.0231 낮았습니다. 그래도 naive ONNX INT8처럼 완전히 붕괴하지는 않았습니다.
 - Calibration sample을 64장에서 1024장으로 늘린 A8W8은 full COCO mAP50-95가 0.3740에서 0.3787로 올랐습니다. 회복폭이 +0.0047이라 calibration 부족만으로 A8W8 손실을 설명하기는 어렵습니다.
 - CLE + QuantSim은 sample100에서는 QuantSim 단독보다 약간 낮았고, full COCO calib1024에서는 QuantSim calib1024와 사실상 같았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
-- AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. 개선은 있지만 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
+- AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. full 설정(`adaround-samples 256`, `iterations 5000`) foreground run은 2026-06-28에 약 30% 지점에서 산출물 없이 끊겼으므로 결과로 사용하지 않습니다. 개선은 있지만 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
@@ -284,7 +284,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 
 ## 다음 실험
 
-1. AdaRound는 full 설정(`adaround-samples 256`, `iterations 5000`) 또는 full COCO 평가로 중간 결과의 일반성을 확인합니다.
+1. AdaRound는 `scripts/13_run_adaround_full_detached.sh`로 full 설정(`adaround-samples 256`, `iterations 5000`)을 detached 재실행하거나, 기존 중간 산출물의 full COCO 평가로 일반성을 확인합니다.
 2. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
 3. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
 4. TensorRT runtime library 설치 후 TensorRT EP에서 FP32/A8W8 QDQ/QOperator 후보를 다시 측정하고, 이후 QNN 또는 target EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.
