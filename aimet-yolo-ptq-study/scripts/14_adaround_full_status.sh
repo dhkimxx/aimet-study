@@ -11,7 +11,7 @@ LINES="${LINES:-24}"
 
 PID_FILE="${PID_DIR}/${RUN_NAME}.pid"
 TMUX_SESSION_FILE="${PID_DIR}/${RUN_NAME}.tmux"
-MODEL_PATH="${PROJECT_ROOT}/results/models/yolo26n_pretrained.aimet_adaround_int8_calib256_adar256_iter5000.onnx"
+MODEL_PATH="${PROJECT_ROOT}/results/models/yolo26n_pretrained.aimet_adaround_int8_calib256_iter5000.onnx"
 METRICS_CSV="${PROJECT_ROOT}/results/metrics_quick.csv"
 
 latest_log="${LOG_FILE:-}"

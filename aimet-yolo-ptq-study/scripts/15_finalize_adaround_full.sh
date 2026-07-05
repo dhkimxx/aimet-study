@@ -5,7 +5,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 RUN_NAME="${RUN_NAME:-aimet_adaround_a8w8_adar256_iter5000_gpu}"
-MODEL_PATH="${MODEL_PATH:-results/models/yolo26n_pretrained.aimet_adaround_int8_calib256_adar256_iter5000.onnx}"
+MODEL_PATH="${MODEL_PATH:-results/models/yolo26n_pretrained.aimet_adaround_int8_calib256_iter5000.onnx}"
 COVERAGE_CSV="${COVERAGE_CSV:-results/quantization_coverage_adaround_full.csv}"
 COVERAGE_JSON="${COVERAGE_JSON:-results/quantization_coverage_adaround_full.json}"
 METRICS_CSV="${METRICS_CSV:-results/metrics_quick.csv}"

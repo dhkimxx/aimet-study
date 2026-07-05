@@ -201,6 +201,8 @@ scripts/15_finalize_adaround_full.sh
 
 `15_finalize_adaround_full.sh`는 full AdaRound ONNX가 생성된 뒤 coverage 파일을 만들고, FP32/A8W8/중간 AdaRound 대비 mAP delta를 Markdown snippet으로 출력합니다.
 
+현재 full AdaRound 설정(`calib256`, `adaround-samples 256`, `iterations 5000`, `sample500`)은 mAP50-95 0.4026으로 완료됐습니다. 이는 A8W8 QuantSim 0.4012 대비 +0.0014, 중간 AdaRound 0.4036 대비 -0.0011이며, coverage는 Q/DQ 397/397, Conv weight QDQ 102/102, Conv weight INT storage 0/102입니다.
+
 AIMET ONNX 2.2.0의 public export는 `.encodings` 파일을 별도로 저장하고 ONNX에서 AIMET quantization 노드를 제거합니다. ONNX Runtime/Ultralytics 평가용 산출물은 반드시 `QuantizeLinear`/`DequantizeLinear` 노드가 들어 있는지 확인합니다.
 
 ```bash
