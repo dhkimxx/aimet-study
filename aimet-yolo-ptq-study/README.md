@@ -196,6 +196,7 @@ full AdaRound 설정은 훨씬 오래 걸리며 interactive shell에서 끊기�
 ```bash
 scripts/13_run_adaround_full_detached.sh
 scripts/14_adaround_full_status.sh
+scripts/15_finalize_adaround_full.sh
 ```
 
 AIMET ONNX 2.2.0의 public export는 `.encodings` 파일을 별도로 저장하고 ONNX에서 AIMET quantization 노드를 제거합니다. ONNX Runtime/Ultralytics 평가용 산출물은 반드시 `QuantizeLinear`/`DequantizeLinear` 노드가 들어 있는지 확인합니다.
