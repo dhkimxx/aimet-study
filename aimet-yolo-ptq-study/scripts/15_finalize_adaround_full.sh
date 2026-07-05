@@ -35,3 +35,8 @@ else
   echo "No metrics row found for ${RUN_NAME} in ${METRICS_CSV}" >&2
   exit 1
 fi
+
+echo
+scripts/run_native.sh python scripts/16_summarize_adaround_full.py \
+  --metrics-csv "${METRICS_CSV}" \
+  --coverage-csv "${COVERAGE_CSV}"

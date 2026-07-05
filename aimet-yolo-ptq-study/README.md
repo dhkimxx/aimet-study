@@ -199,6 +199,8 @@ scripts/14_adaround_full_status.sh
 scripts/15_finalize_adaround_full.sh
 ```
 
+`15_finalize_adaround_full.sh`는 full AdaRound ONNX가 생성된 뒤 coverage 파일을 만들고, FP32/A8W8/중간 AdaRound 대비 mAP delta를 Markdown snippet으로 출력합니다.
+
 AIMET ONNX 2.2.0의 public export는 `.encodings` 파일을 별도로 저장하고 ONNX에서 AIMET quantization 노드를 제거합니다. ONNX Runtime/Ultralytics 평가용 산출물은 반드시 `QuantizeLinear`/`DequantizeLinear` 노드가 들어 있는지 확인합니다.
 
 ```bash
