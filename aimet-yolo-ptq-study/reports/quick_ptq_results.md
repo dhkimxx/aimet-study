@@ -154,6 +154,26 @@ sample100 기준으로 A16W8이 가장 높았습니다. sample500과 full 기준
 
 중요하게, 위 AIMET 모델들은 여전히 QDQ accuracy-eval 모델입니다. `Conv weight QDQ`는 102/102지만 `Conv weight INT storage`는 0/102라 ONNX 파일 안의 Conv weight 본체는 FP32 initializer입니다. 따라서 A8W16/A16W16 결과는 "16비트 weight quantization을 시뮬레이션했을 때 정확도"로 읽어야 하고, 배포 파일 크기/속도 이득을 의미하지 않습니다.
 
+## AIMET encoding 수준 비교
+
+AIMET `.encodings` sidecar는 `scripts/17_analyze_encodings.py`로 별도 요약합니다. 이 분석은 ONNX QDQ 노드만 세는 coverage와 달리, AIMET이 저장한 activation/parameter encoding의 bitwidth와 `scale`을 group별로 봅니다. `scale`은 quantization step이므로 같은 range에서는 작을수록 더 촘촘합니다.
+
+```bash
+scripts/run_native.sh python scripts/17_analyze_encodings.py
+```
+
+| ID | 실험 | QDQ activation | Act bits | sidecar-only act | QDQ scale median | Head cv3 scale median | Param bits |
+| --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| C64 | A8W8 calib64 | 295 | 8:295 | 55 | 0.036705244 | 0.16721365 | 8:102 |
+| C1024 | A8W8 calib1024 | 295 | 8:295 | 55 | 0.03661247 | 0.17133510 | 8:102 |
+| E128 | AdaRound adar128 iter2000 | 295 | 8:295 | 55 | 0.036030162 | 0.19122264 | 8:102 |
+| E256 | AdaRound adar256 iter5000 | 295 | 8:295 | 55 | 0.035939708 | 0.19155112 | 8:102 |
+| A16W8 | A16W8 calib64 | 295 | 16:295 | 55 | 0.00018731368 | 0.0014859132 | 8:102 |
+| A8W16 | A8W16 calib64 | 295 | 8:295 | 55 | 0.037597705 | 0.19251800 | 16:102 |
+| A16W16 | A16W16 calib64 | 295 | 16:295 | 55 | 0.00018694699 | 0.0014981945 | 16:102 |
+
+해석: A8W8, calibration 확대, AdaRound는 activation bitwidth가 모두 8비트이고 QDQ activation 수가 295개로 같습니다. AdaRound가 weight rounding은 바꾸지만 activation encoding 병목은 그대로 둔다는 뜻입니다. A16W8/A16W16은 같은 295개 activation을 16비트로 바꾸며 scale median을 약 0.036대에서 약 0.000187로 줄입니다. `sidecar-only act` 55개는 AIMET sidecar에는 있으나 표준 QDQ 평가에서는 graph output과 YOLO postprocess 정책 때문에 float로 남긴 activation입니다.
+
 ## ORT QOperator Conv-only 배포 probe
 
 AIMET QDQ 모델이 정확도 분석용이라는 점을 분리하기 위해, ONNX Runtime static quantization의 `QOperator` 형식으로 Conv-only INT8 모델을 별도로 만들었습니다. 이 실험은 AIMET 결과가 아니라, packed INT8 weight storage와 ORT CUDA 실행 특성을 확인하기 위한 배포성 probe입니다.
@@ -281,15 +301,16 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - CLE + QuantSim은 sample100에서는 QuantSim 단독보다 약간 낮았고, full COCO calib1024에서는 QuantSim calib1024와 사실상 같았습니다. 이 모델은 BatchNorm 없는 ONNX로 export되어 high-bias folding도 적용되지 않았습니다.
 - AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. full 설정인 `calib256`, `adaround-samples 256`, `iterations 5000`, `sample500`은 0.4026으로 A8W8보다 +0.0014, 중간 AdaRound보다 -0.0011입니다. 두 AdaRound 결과 모두 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
+- Encoding 분석 기준으로 A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꿔 quantization step을 크게 줄입니다. A8W16은 parameter encoding만 16비트라 activation 병목은 그대로 남습니다.
 - YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 - G는 ORT QOperator Conv-only라 Conv weight storage가 실제 int8로 접혔지만 AIMET 결과가 아닙니다. packed storage와 작은 파일 크기는 얻었으나, sample500 정확도와 ORT CUDA latency가 모두 AIMET A8W8 QDQ보다 나빠 현재 배포 후보로 채택하지 않습니다.
-- TensorRT EP는 provider 목록에는 있으나 현재 환경에서 `libnvinfer.so.10`이 없어 실제 로드되지 않았습니다. fallback 값을 TensorRT latency로 기록하지 않도록 latency 스크립트에 provider guard를 추가했습니다.
+- TensorRT EP는 provider 목록에는 있으나 현재 환경에서 `libnvinfer.so.10`이 없어 실제 로드되지 않았습니다. 이는 AIMET HW-independent 결론의 필수 조건은 아니며, fallback 값을 TensorRT latency로 기록하지 않도록 latency 스크립트에 provider guard를 추가했습니다.
 
 ## 다음 실험
 
 1. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
 2. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
 3. AdaRound full 설정은 sample500에서 완료했으므로, 필요하면 같은 산출물을 full COCO val로 추가 평가해 subset 결론의 일반성을 확인합니다.
-4. TensorRT runtime library 설치 후 TensorRT EP에서 FP32/A8W8 QDQ/QOperator 후보를 다시 측정하고, 이후 QNN 또는 target EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.
+4. Target runtime을 정한 뒤 TensorRT/QNN/EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.

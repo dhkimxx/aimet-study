@@ -1,5 +1,12 @@
 # 의사결정 로그
 
+## 2026-07-08
+
+| 주제 | 결정 | 이유 |
+| --- | --- | --- |
+| AIMET 범위 재정의 | 현 단계 결론은 AIMET의 HW-independent PTQ/encoding/accuracy 분석으로 두고, TensorRT/QNN latency는 배포 후속 검증으로 분리 | AIMET QDQ와 `.encodings`는 어떤 tensor/group이 얼마나 양자화됐고 정확도 손실이 어디서 나는지 설명하는 데 적합합니다. Target runtime에서 packed INT kernel로 접히는지와 latency 이득이 나는지는 별도 export/runtime 문제입니다. |
+| Encoding 분석 추가 | `scripts/17_analyze_encodings.py`로 AIMET `.encodings`를 QDQ-exported activation, sidecar-only activation, head/cv3 group, parameter bitwidth/scale로 요약 | A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꾸며 scale median을 약 0.036대에서 약 0.000187로 줄입니다. 이는 activation bitwidth가 weight bitwidth보다 정확도 회복에 더 크게 작용한 결과와 일관됩니다. |
+
 ## 2026-06-28
 
 | 주제 | 결정 | 이유 |

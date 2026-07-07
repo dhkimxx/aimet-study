@@ -6,7 +6,7 @@
 
 핵심 질문:
 
-> AIMET을 쓰지 않은 일반 INT8 기준선부터 QuantSim, CLE, AdaRound, AutoQuant까지 활용도를 높이면 YOLO의 정확도, 레이턴시, 메모리 사용량은 어떻게 달라지는가?
+> AIMET을 쓰지 않은 일반 INT8 기준선부터 QuantSim, CLE, AdaRound, 8/16비트 조합까지 비교하면 YOLO의 정확도, encoding 범위, activation/weight 민감도는 어떻게 달라지는가?
 
 ## 확정한 의사결정
 
@@ -53,6 +53,7 @@ aimet-yolo-ptq-study/
     README.md
   reports/
     aimet_ptq_study.md
+    encoding_analysis.md
     paper_report.md
     research_roadmap.md
   results/
@@ -72,6 +73,7 @@ aimet-yolo-ptq-study/
     10_activation_sensitivity.py
     11_generate_report_figures.py
     12_eval_ort_qoperator_int8.py
+    17_analyze_encodings.py
   src/
     aimet_yolo_study/
 ```
@@ -99,7 +101,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
-논문형 리포트는 `reports/paper_report.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
+논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
 현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, AdaRound full 설정 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
@@ -213,6 +215,12 @@ scripts/run_native.sh python -c "import onnx; from collections import Counter; m
 
 ```bash
 scripts/run_native.sh python scripts/09_quantization_coverage.py
+```
+
+AIMET `.encodings` sidecar는 별도 분석 스크립트로 QDQ-exported activation, sidecar-only activation, head/cv3 group, parameter bitwidth와 scale median을 비교합니다. 생성된 원천 CSV/JSON은 `results/encoding_analysis.*`, 요약 리포트는 `reports/encoding_analysis.md`에 기록됩니다.
+
+```bash
+scripts/run_native.sh python scripts/17_analyze_encodings.py
 ```
 
 QDQ 모델과 별도로 ONNX Runtime `QOperator` 형식의 Conv-only packed INT8 후보도 만들 수 있습니다. 이 경로는 AIMET이 아니라 ORT static quantization 기준이며, Conv weight가 실제 int8 initializer로 저장되는지와 ORT CUDA에서 latency 이득이 있는지를 확인하기 위한 배포성 probe입니다.

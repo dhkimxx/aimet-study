@@ -2,7 +2,7 @@
 
 ## 요약
 
-YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET QuantSim/CLE/AdaRound/AutoQuant 흐름을 비교합니다. 목표는 정확도를 최대한 유지하면서 레이턴시와 메모리 사용량을 줄이는 것입니다.
+YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET QuantSim/CLE/AdaRound, 8/16비트 조합, activation sensitivity를 비교합니다. 현 단계 목표는 AIMET의 HW-independent PTQ 관점에서 정확도, encoding 범위, activation/weight 민감도를 설명하는 것입니다. 레이턴시와 packed storage는 배포 후속 검증으로 분리합니다.
 
 정정 사항: AIMET ONNX 2.2.0 public export가 만든 `.encodings` sidecar는 ONNX Runtime 평가에 자동 적용되지 않습니다. 따라서 QDQ 노드가 없는 AIMET ONNX를 평가한 C/D/E 빠른 검증 값은 INT8 양자화 결과가 아니라 FP32 ONNX 결과였습니다. 현재 리포트의 빠른 검증 표는 `QuantizeLinear`/`DequantizeLinear` 노드가 포함된 ONNX를 다시 생성해 평가한 값입니다.
 
@@ -81,7 +81,23 @@ YOLO26 ONNX 모델을 대상으로 FP32 기준선, no-AIMET naive INT8, AIMET Qu
 
 해석: sample100 기준에서는 A16W8이 가장 높았고, sample500/full 기준에서는 A16W16이 FP32에 가장 가까웠습니다. 그러나 단일 축 비교에서는 모든 표본에서 A16W8이 A8W16보다 높아, 현재 YOLO QDQ 경로에서 weight보다 activation quantization error가 더 민감하다는 결론이 안정적으로 유지됩니다.
 
-커버리지상 위 QDQ 조합들은 Q/DQ 397/397, Conv weight QDQ 102/102, Conv output QDQ 102/102입니다. 그러나 Conv weight INT storage는 모두 0/102입니다. 즉 현재 AIMET QDQ 산출물은 정확도 평가용 fake-quant/QDQ 모델이며, weight가 실제 int8/int16 initializer로 접힌 deployment artifact는 아직 아닙니다. 또한 16비트 QDQ 모델은 CUDA 로드 시 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈으므로, 정확도 회복과 별개로 레이턴시는 반드시 별도 benchmark로 확인해야 합니다.
+커버리지상 위 QDQ 조합들은 Q/DQ 397/397, Conv weight QDQ 102/102, Conv output QDQ 102/102입니다. 그러나 Conv weight INT storage는 모두 0/102입니다. 즉 현재 AIMET QDQ 산출물은 정확도 평가용 fake-quant/QDQ 모델이며, weight가 실제 int8/int16 initializer로 접힌 deployment artifact는 아직 아닙니다. 또한 16비트 QDQ 모델은 CUDA 로드 시 ONNX Runtime이 `817 Memcpy nodes are added` 경고를 냈으므로, 정확도 회복과 배포 레이턴시는 분리해서 봅니다.
+
+## AIMET encoding 분석
+
+`scripts/17_analyze_encodings.py`는 AIMET `.encodings` sidecar를 QDQ-exported activation, sidecar-only activation, head/cv3 group, parameter encoding으로 나눠 기록합니다. 요약 리포트는 `reports/encoding_analysis.md`입니다.
+
+| ID | 실험 | QDQ activation | Act bits | sidecar-only act | QDQ scale median | Head cv3 scale median | Param bits |
+| --- | --- | ---: | --- | ---: | ---: | ---: | --- |
+| C64 | A8W8 calib64 | 295 | 8:295 | 55 | 0.036705244 | 0.16721365 | 8:102 |
+| C1024 | A8W8 calib1024 | 295 | 8:295 | 55 | 0.03661247 | 0.17133510 | 8:102 |
+| E128 | AdaRound adar128 iter2000 | 295 | 8:295 | 55 | 0.036030162 | 0.19122264 | 8:102 |
+| E256 | AdaRound adar256 iter5000 | 295 | 8:295 | 55 | 0.035939708 | 0.19155112 | 8:102 |
+| A16W8 | A16W8 calib64 | 295 | 16:295 | 55 | 0.00018731368 | 0.0014859132 | 8:102 |
+| A8W16 | A8W16 calib64 | 295 | 8:295 | 55 | 0.037597705 | 0.19251800 | 16:102 |
+| A16W16 | A16W16 calib64 | 295 | 16:295 | 55 | 0.00018694699 | 0.0014981945 | 16:102 |
+
+해석: A8W8, calibration 확대, AdaRound는 activation encoding 수와 bitwidth가 같습니다. AdaRound가 weight rounding은 바꾸지만 activation 병목을 직접 바꾸지 않는다는 뜻입니다. A16W8/A16W16은 같은 295개 QDQ activation을 16비트로 바꿔 scale median을 약 0.036대에서 약 0.000187로 줄입니다. `sidecar-only act` 55개는 AIMET sidecar에는 있으나 QDQ 평가에서는 graph output/postprocess 정책으로 float로 남긴 activation입니다.
 
 ## Activation QDQ 민감도
 
@@ -153,7 +169,7 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 
 ## 메모리 결과
 
-메모리 peak 측정은 이번 최종 결론에서 제외했습니다. 현재 리포트의 판단 근거는 정확도, QDQ/storage coverage, latency, activation sensitivity입니다. 메모리 절감 효과는 packed deployment artifact와 target runtime이 정해진 뒤 별도 측정합니다.
+메모리 peak 측정은 이번 최종 결론에서 제외했습니다. 현재 리포트의 판단 근거는 정확도, AIMET encoding, QDQ/storage coverage, latency, activation sensitivity입니다. 메모리 절감 효과는 packed deployment artifact와 target runtime이 정해진 뒤 별도 측정합니다.
 
 ## 해석 메모
 
@@ -177,10 +193,11 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 - full COCO 기준으로 A8W8 calib64는 FP32 대비 -0.0231 mAP50-95였고, QuantSim calib1024는 -0.0184, CLE calib1024는 -0.0183까지 소폭 회복했습니다. CLE와 QuantSim calib1024의 차이는 +0.0001에 그쳤습니다. A16W16은 -0.0019까지 회복했습니다.
 - 16비트 QDQ 조합은 opset 21 변환이 필요합니다. CUDA sample500/full에서는 A16W16이 FP32에 가장 가까웠지만, 단일 축 비교에서는 A16W8이 A8W16보다 높아 activation 16비트 쪽의 개선 신호가 weight 16비트보다 컸습니다.
 - 16비트 QDQ 모델은 CUDAExecutionProvider에서 실행되지만 ONNX Runtime이 다수의 Memcpy node를 추가했습니다. 정확도와 배포 레이턴시를 분리해서 봐야 합니다.
+- Encoding 분석 기준으로 A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꿔 quantization step을 크게 줄입니다. 이 결과는 activation 쪽이 더 민감하다는 정확도 결과와 맞습니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
 - ORT QOperator Conv-only는 QLinearConv 102개와 Conv weight INT storage 102/102를 만들었지만, sample500 mAP50-95 0.3486 및 model-only 32.40ms로 AIMET A8W8 QDQ보다 나빴습니다.
-- Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 QDQ 산출물은 정확도 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 다시 확인해야 합니다.
-- TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. provider fallback guard는 추가했습니다.
+- Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 AIMET QDQ 산출물은 accuracy/encoding 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 별도 확인해야 합니다.
+- TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. 이는 AIMET HW-independent 결론의 필수 조건은 아니며, provider fallback guard는 추가했습니다.
 - CLE calib1024 full 실행 로그에서는 BatchNorm 없는 모델이라 high-bias folding이 지원되지 않는다는 AIMET 경고가 나왔습니다. 이 구조에서는 CLE가 QuantSim 단독 대비 큰 개선을 주기 어렵습니다.
 - AdaRound는 smoke, 중간 설정, full 설정까지 sample500으로 확인했습니다. full 설정은 detached runner에서 완료됐고, 필요하면 같은 산출물의 full COCO 평가는 추가로 남아 있습니다.
