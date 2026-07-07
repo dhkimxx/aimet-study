@@ -1,8 +1,8 @@
 # AIMET ONNX PTQ for YOLO: Quantization Coverage, Accuracy, and Runtime Study
 
-작성일: 2026-06-28
+최종 업데이트: 2026-07-08
 
-상태: 논문형 리포트 초안. 현재 수치는 `sample100` 탐색, `sample500` 확대 검증, AdaRound 중간/full 설정, full COCO val 5천 장 핵심 결과, ORT QOperator Conv-only 배포 probe, TensorRT EP preflight를 포함합니다. 남은 주요 공백은 TensorRT/QNN 같은 target runtime의 실제 latency 측정입니다.
+상태: 논문형 리포트. 현재 수치는 `sample100` 탐색, `sample500` 확대 검증, AdaRound 중간/full 설정, full COCO val 5천 장 핵심 결과, ORT QOperator Conv-only 배포 probe, TensorRT EP preflight를 포함합니다. 남은 주요 공백은 TensorRT/QNN 같은 target runtime의 실제 latency 측정입니다.
 
 ## 초록
 
@@ -239,7 +239,7 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id T -
 scripts/run_native.sh python scripts/11_generate_report_figures.py
 ```
 
-## 최종 리포트까지 남은 작업
+## 후속 검증 큐
 
 | 우선순위 | 작업 | 완료 기준 |
 | --- | --- | --- |

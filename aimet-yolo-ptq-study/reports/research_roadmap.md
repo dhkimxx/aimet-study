@@ -109,10 +109,10 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id T -
 
 | 파일 | 역할 |
 | --- | --- |
-| `reports/paper_report.md` | 논문형 본문 초안 |
+| `reports/paper_report.md` | 논문형 본문 |
 | `reports/quick_ptq_results.md` | 빠른 검증과 실험 로그 |
 | `reports/aimet_ptq_study.md` | 전체 스터디 리포트 |
-| `reports/research_roadmap.md` | 남은 실험 큐와 완료 기준 |
+| `reports/research_roadmap.md` | 완료된 실험과 후속 검증 큐 |
 | `results/metrics_quick.csv` | quick accuracy 원천 데이터 |
 | `results/quantization_coverage*.csv` | coverage 원천 데이터 |
 | `results/latency.csv` | latency 원천 데이터 |

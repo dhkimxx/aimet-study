@@ -153,14 +153,7 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 
 ## 메모리 결과
 
-| ID | 실험 | peak GPU MB | peak host MB |
-| --- | --- | ---: | ---: |
-| A | FP32 ONNX | 예정 | 예정 |
-| B | no-AIMET naive ONNX INT8 | 예정 | 예정 |
-| C | AIMET QuantSim PTQ | 예정 | 예정 |
-| D | AIMET CLE + QuantSim | 예정 | 예정 |
-| E | AIMET AdaRound + QuantSim | 예정 | 예정 |
-| F | AIMET AutoQuant | 예정 | 예정 |
+메모리 peak 측정은 이번 최종 결론에서 제외했습니다. 현재 리포트의 판단 근거는 정확도, QDQ/storage coverage, latency, activation sensitivity입니다. 메모리 절감 효과는 packed deployment artifact와 target runtime이 정해진 뒤 별도 측정합니다.
 
 ## 해석 메모
 

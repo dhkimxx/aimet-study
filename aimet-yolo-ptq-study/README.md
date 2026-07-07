@@ -99,8 +99,8 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
-논문형 리포트 초안은 `reports/paper_report.md`, 최종 리포트까지의 실험 큐와 완료 기준은 `reports/research_roadmap.md`에 정리합니다.
-현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, full COCO val 핵심 결과를 함께 기록합니다.
+논문형 리포트는 `reports/paper_report.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
+현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, AdaRound full 설정 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
 

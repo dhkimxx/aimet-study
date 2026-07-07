@@ -1,8 +1,8 @@
 # AIMET YOLO PTQ 빠른 검증 결과
 
-작성일: 2026-06-28
+최종 업데이트: 2026-07-08
 
-이 문서는 COCO 전체 평가 전에 `--eval-samples 100`으로 실행한 빠른 검증 결과, 핵심 후보를 `--eval-samples 500`으로 확대한 결과, 그리고 full COCO val에서 확인한 핵심 결과를 정리합니다. 목적은 no-AIMET INT8과 AIMET 기반 PTQ 경로가 실제로 어떤 차이를 보이는지 재현 가능한 숫자로 확인하는 것입니다.
+이 문서는 COCO 전체 평가 전에 `--eval-samples 100`으로 실행한 빠른 검증 결과, 핵심 후보를 `--eval-samples 500`으로 확대한 결과, AdaRound full 설정 결과, 그리고 full COCO val에서 확인한 핵심 결과를 정리합니다. 목적은 no-AIMET INT8과 AIMET 기반 PTQ 경로가 실제로 어떤 차이를 보이는지 재현 가능한 숫자로 확인하는 것입니다.
 
 중요 정정: AIMET ONNX 2.2.0의 public `QuantizationSimModel.export()`는 ONNX를 저장하기 전에 AIMET `QcQuantizeOp` 노드를 제거하고 별도 `.encodings` 파일을 저장합니다. ONNX Runtime/Ultralytics는 이 `.encodings` 파일을 자동 적용하지 않으므로, QDQ 노드가 없는 AIMET ONNX를 평가한 이전 C/D/E 값은 INT8 결과가 아니라 FP32 ONNX 평가로 봐야 합니다. 아래 표는 `QuantizeLinear`/`DequantizeLinear` 노드가 포함된 ONNX로 다시 실행한 결과입니다.
 
