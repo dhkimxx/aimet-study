@@ -58,6 +58,8 @@ aimet-yolo-ptq-study/
     encoding_analysis.md
     head_cv3_layer_sensitivity.md
     head_cv3_layer_sensitivity_sample500.md
+    head_group_mixed_precision.md
+    head_group_mixed_precision_sample500.md
     paper_report.md
     research_roadmap.md
   results/
@@ -107,7 +109,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
-논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, head `cv3` 내부 per-layer 결과는 `reports/head_cv3_layer_sensitivity.md`와 `reports/head_cv3_layer_sensitivity_sample500.md`, selected activation encoding intervention 결과는 `reports/activation_encoding_interventions.md`와 `reports/activation_encoding_interventions_sample500.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
+논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, head `cv3` 내부 per-layer 결과는 `reports/head_cv3_layer_sensitivity.md`와 `reports/head_cv3_layer_sensitivity_sample500.md`, selected activation encoding intervention 결과는 `reports/activation_encoding_interventions.md`와 `reports/activation_encoding_interventions_sample500.md`, head group selective A16 결과는 `reports/head_group_mixed_precision.md`와 `reports/head_group_mixed_precision_sample500.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
 현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, AdaRound full 설정 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
@@ -276,6 +278,8 @@ scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0
 ```bash
 scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 100 --force --variant cv3_s1_2_final_a16 --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_scale075 --variant cv3_s1_2_final_scale050 --variant cv3_s1_2_final_scale125 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_p999
 scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 500 --force --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_a16 --output-csv results/activation_encoding_interventions_sample500.csv --output-json results/activation_encoding_interventions_sample500.json --output-md reports/activation_encoding_interventions_sample500.md
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 100 --force --variant head_conv_outputs_a16 --variant head_cv2_outputs_a16 --variant head_cv3_outputs_a16 --variant head_scale0_outputs_a16 --variant head_scale1_outputs_a16 --variant head_scale2_outputs_a16 --variant head_final_outputs_a16 --output-csv results/head_group_mixed_precision.csv --output-json results/head_group_mixed_precision.json --output-md reports/head_group_mixed_precision.md --report-title "Head Group Mixed Precision"
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 500 --force --variant head_conv_outputs_a16 --variant head_cv2_outputs_a16 --variant head_cv3_outputs_a16 --variant head_scale0_outputs_a16 --variant head_scale1_outputs_a16 --variant head_scale2_outputs_a16 --variant head_final_outputs_a16 --output-csv results/head_group_mixed_precision_sample500.csv --output-json results/head_group_mixed_precision_sample500.json --output-md reports/head_group_mixed_precision_sample500.md --report-title "Head Group Mixed Precision"
 ```
 
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.

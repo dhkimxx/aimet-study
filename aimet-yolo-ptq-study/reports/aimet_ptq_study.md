@@ -114,7 +114,7 @@ A8W8 QDQ 모델에서 activation QDQ만 선택적으로 제거해 같은 sample1
 
 해석: 모든 activation QDQ를 제거하고 weight QDQ만 남기면 mAP50-95가 0.5440으로 회복되어 A16W8 0.5449와 거의 같습니다. 따라서 현 단계의 근본 손실은 weight보다 activation QDQ에 더 가깝습니다. 특히 head Conv output 24개만 float로 되돌려도 0.5327까지 회복되어 YOLO head 주변 activation encoding이 민감합니다.
 
-Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_scale2_outputs`가 0.5266, `head_final_outputs`가 0.5221이었습니다. sample500 재확인에서는 A8W8 기준 0.4012 대비 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024였습니다. 따라서 final output 단독보다 `cv3` branch와 더 넓은 head Conv activation 범위가 다음 최적화 후보입니다.
+Head 세분화 sample100 결과에서는 `head_cv3_outputs`가 0.5252, `head_scale2_outputs`가 0.5266, `head_final_outputs`가 0.5221이었습니다. sample500 재확인에서는 A8W8 기준 0.4012 대비 `head_cv3_outputs` 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024였습니다. Head group selective A16 sample500에서는 `head_cv3_outputs_a16`이 0.4072(+0.0060)로 가장 높고, `head_conv_outputs_a16` 전체 24개는 0.4053(+0.0042)이었습니다. 따라서 final output 단독이나 head 전체보다 `cv3` class branch activation group이 다음 최적화 후보입니다.
 
 ## 빠른 검증 산출물 확인
 
@@ -198,6 +198,7 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
 - `cv3` 내부 per-layer 민감도에서는 sample100 전체 15개 중 `cv3_s1_2_final`(+0.0094), `cv3_s0_0_0`(+0.0076), `cv3_s2_1_1`(+0.0025)이 상위였지만, sample500 top3 재확인에서는 `cv3_s1_2_final`만 +0.0036으로 양수 회복을 유지했습니다.
 - Encoding intervention에서는 `head_cv3_outputs` 15개를 A16 preserve-range로 바꾼 변형이 sample500에서 0.4064(+0.0052)로 회복했습니다. 단일 `cv3_s1_2_final` A16은 -0.0005, symmetric int8은 +0.0019라 단일 tensor보다 `cv3` group 누적 activation step/range가 더 큰 원인으로 보입니다.
+- Head group selective A16에서는 sample500 기준 `head_cv3_outputs_a16`이 0.4072(+0.0060)로 가장 높았습니다. `head_scale2_outputs_a16`은 0.4054(+0.0042), `head_conv_outputs_a16`은 0.4053(+0.0042)라 더 넓게 올리는 전략보다 `cv3` group 중심 전략이 더 타당합니다.
 - ORT QOperator Conv-only는 QLinearConv 102개와 Conv weight INT storage 102/102를 만들었지만, sample500 mAP50-95 0.3486 및 model-only 32.40ms로 AIMET A8W8 QDQ보다 나빴습니다.
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 AIMET QDQ 산출물은 accuracy/encoding 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 별도 확인해야 합니다.
 - TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. 이는 AIMET HW-independent 결론의 필수 조건은 아니며, provider fallback guard는 추가했습니다.

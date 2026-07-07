@@ -53,8 +53,14 @@ class QdqRecord:
 
 
 PRESET_VARIANTS: dict[str, InterventionSpec] = {
-    "cv3_s1_2_final_a16": InterventionSpec(target="cv3_s1_2_final", method="a16_preserve_range"),
+    "head_conv_outputs_a16": InterventionSpec(target="head_conv_outputs", method="a16_preserve_range"),
+    "head_cv2_outputs_a16": InterventionSpec(target="head_cv2_outputs", method="a16_preserve_range"),
     "head_cv3_outputs_a16": InterventionSpec(target="head_cv3_outputs", method="a16_preserve_range"),
+    "head_scale0_outputs_a16": InterventionSpec(target="head_scale0_outputs", method="a16_preserve_range"),
+    "head_scale1_outputs_a16": InterventionSpec(target="head_scale1_outputs", method="a16_preserve_range"),
+    "head_scale2_outputs_a16": InterventionSpec(target="head_scale2_outputs", method="a16_preserve_range"),
+    "head_final_outputs_a16": InterventionSpec(target="head_final_outputs", method="a16_preserve_range"),
+    "cv3_s1_2_final_a16": InterventionSpec(target="cv3_s1_2_final", method="a16_preserve_range"),
     "cv3_s1_2_final_scale075": InterventionSpec(
         target="cv3_s1_2_final",
         method="scale_factor",
@@ -137,6 +143,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-csv", default="results/activation_encoding_interventions.csv")
     parser.add_argument("--output-json", default="results/activation_encoding_interventions.json")
     parser.add_argument("--output-md", default="reports/activation_encoding_interventions.md")
+    parser.add_argument("--report-title", default="Activation Encoding Interventions")
     return parser.parse_args()
 
 
@@ -422,13 +429,18 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
             writer.writerow({field: row.get(field, "") for field in FIELDNAMES})
 
 
-def markdown_report(rows: list[dict[str, object]], eval_samples: int | None, baseline_map: float | None) -> str:
+def markdown_report(
+    rows: list[dict[str, object]],
+    eval_samples: int | None,
+    baseline_map: float | None,
+    report_title: str,
+) -> str:
     lines = [
-        "# Activation Encoding Interventions",
+        f"# {report_title}",
         "",
         "최종 업데이트: 2026-07-08",
         "",
-        "A8W8 QDQ 모델에서 선택한 activation QDQ의 scale/zero-point만 바꿔 평가한 결과입니다. 목적은 QDQ를 float로 제거하지 않고도 `cv3` 민감도가 encoding/range 조정으로 회복되는지 확인하는 것입니다.",
+        "A8W8 QDQ 모델에서 선택한 activation 또는 activation group QDQ의 scale/zero-point만 바꿔 평가한 결과입니다. 목적은 QDQ를 float로 제거하지 않고도 activation 민감도가 encoding/range 조정으로 회복되는지 확인하는 것입니다.",
         "",
         f"- 평가 샘플: {eval_samples if eval_samples is not None else 'full val'}",
         f"- 기준 A8W8 mAP50-95: {fmt_float(baseline_map)}",
@@ -623,7 +635,7 @@ def main() -> int:
     with output_json.open("w", encoding="utf-8") as handle:
         json.dump({"rows": rows, "details": details}, handle, indent=2)
     output_md.parent.mkdir(parents=True, exist_ok=True)
-    output_md.write_text(markdown_report(rows, args.eval_samples, baseline_map), encoding="utf-8")
+    output_md.write_text(markdown_report(rows, args.eval_samples, baseline_map, args.report_title), encoding="utf-8")
 
     print(
         json.dumps(

@@ -8,6 +8,7 @@
 | Encoding 분석 추가 | `scripts/17_analyze_encodings.py`로 AIMET `.encodings`를 QDQ-exported activation, sidecar-only activation, head/cv3 group, parameter bitwidth/scale로 요약 | A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꾸며 scale median을 약 0.036대에서 약 0.000187로 줄입니다. 이는 activation bitwidth가 weight bitwidth보다 정확도 회복에 더 크게 작용한 결과와 일관됩니다. |
 | Head `cv3` per-layer 민감도 | `scripts/18_head_cv3_layer_sensitivity.py`로 `head_cv3_outputs` 15개 activation QDQ를 하나씩 제거해 평가 | sample100에서는 `cv3_s1_2_final`, `cv3_s0_0_0`, `cv3_s2_1_1`이 상위였지만, sample500 top3 재확인에서는 `cv3_s1_2_final`만 0.4047(+0.0036)로 양수 회복을 유지했습니다. 따라서 다음 encoding/range 실험의 단일 후보는 `cv3_s1_2_final`, group 후보는 `head_cv3_outputs`입니다. |
 | Selected activation encoding intervention | `scripts/19_activation_encoding_intervention.py`로 selected activation QDQ scale/zero-point를 바꿔 평가 | sample500에서 `head_cv3_outputs_a16`은 0.4064(+0.0052)로 회복했지만, 단일 `cv3_s1_2_final_a16`은 0.4006(-0.0005), 단일 symmetric int8은 0.4030(+0.0019)에 그쳤습니다. 따라서 단일 tensor bitwidth보다 `cv3` group 전체 activation step/range 누적 문제가 더 큰 원인으로 판단합니다. |
+| Head group selective A16 | `scripts/19_activation_encoding_intervention.py`에 head group A16 preset을 추가해 branch/scale/final/head 전체를 sample500으로 비교 | `head_cv3_outputs_a16`이 0.4072(+0.0060)로 가장 높고, `head_scale2_outputs_a16`과 `head_conv_outputs_a16`은 각각 약 +0.0042에 그쳤습니다. 따라서 더 넓은 head 전체 A16보다 `cv3` class branch group이 우선 mixed precision 후보입니다. |
 
 ## 2026-06-28
 

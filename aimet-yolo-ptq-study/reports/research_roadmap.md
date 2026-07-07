@@ -25,7 +25,7 @@
 | ORT QOperator Conv-only도 ORT CUDA 배포 후보가 아님 | QLinearConv 102개, Conv weight INT storage 102/102, size 2.757MB지만 sample500 0.3486, model-only 32.40ms |
 | TensorRT EP는 배포 후속 검증 | ORT provider 목록에는 보이지만 `libnvinfer.so.10` 누락으로 TensorRT 로드 실패, CUDA fallback 기록은 스크립트가 차단. AIMET HW-independent 결론의 필수 공백은 아님 |
 | 다음 최적화 대상은 YOLO head activation | head Conv output 24개 float 변형이 0.5174에서 0.5327로 회복 |
-| Head 내부 우선 후보는 `cv3` branch group | sample500 `head_cv3_outputs` float 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024. `cv3` per-layer top3에서는 `cv3_s1_2_final` float만 0.4047(+0.0036)로 양수 회복을 유지했지만, encoding intervention은 `head_cv3_outputs_a16` 0.4064(+0.0052)가 단일 tensor A16보다 안정적 |
+| Head 내부 우선 후보는 `cv3` branch group | sample500 `head_cv3_outputs` float 0.4105, `head_scale2_outputs` 0.4055, `head_final_outputs` 0.4024. `cv3` per-layer top3에서는 `cv3_s1_2_final` float만 0.4047(+0.0036)로 양수 회복을 유지했지만, head group selective A16에서는 `head_cv3_outputs_a16` 0.4072(+0.0060)가 가장 높고 `head_conv_outputs_a16` 0.4053(+0.0042)보다 안정적 |
 
 ## 실험 큐
 
@@ -46,7 +46,7 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 
 ### P0: Head activation 원인 분석
 
-현재 `head_conv_outputs` 24개 QDQ 제거 외에 branch/scale/final output 단위 결과가 추가되었습니다. sample500에서는 `cv3`, `scale2`, final output 후보를 재확인했고, `cv3` branch가 세 후보 중 가장 큰 회복을 보였습니다. 이어서 `cv3` 내부 15개 activation을 하나씩 제거해 sample100 전체 탐색과 sample500 top3 재확인을 완료했고, selected activation encoding intervention까지 완료했습니다.
+현재 `head_conv_outputs` 24개 QDQ 제거 외에 branch/scale/final output 단위 결과가 추가되었습니다. sample500에서는 `cv3`, `scale2`, final output 후보를 재확인했고, `cv3` branch가 세 후보 중 가장 큰 회복을 보였습니다. 이어서 `cv3` 내부 15개 activation을 하나씩 제거해 sample100 전체 탐색과 sample500 top3 재확인을 완료했고, selected activation encoding intervention과 head group selective A16까지 완료했습니다.
 
 완료 기준:
 
@@ -57,7 +57,8 @@ scripts/run_native.sh python scripts/04_aimet_quantsim_ptq.py --device 0 --batch
 | 확대 평가 | sample500 `cv3`, `scale2`, final output 결과 기록 완료 |
 | per-layer 평가 | sample100 `cv3` 15개 전체와 sample500 top3 재확인 완료. `cv3_s1_2_final`만 sample500 양수 회복 유지 |
 | encoding intervention | sample500 `head_cv3_outputs_a16` 0.4064(+0.0052), `cv3_s1_2_final_symmetric_i8` 0.4030(+0.0019), `cv3_s1_2_final_a16` 0.4006(-0.0005) |
-| 다음 결론 | `head_cv3_outputs` group 중심으로 mixed precision, symmetric/asymmetric, per-channel 후보를 확정 |
+| head group selective A16 | sample500 `head_cv3_outputs_a16` 0.4072(+0.0060), `head_scale2_outputs_a16` 0.4054(+0.0042), `head_conv_outputs_a16` 0.4053(+0.0042), `head_cv2_outputs_a16` 0.3989(-0.0023) |
+| 다음 결론 | `head_cv3_outputs` group 중심으로 symmetric/asymmetric, percentile range, per-channel 후보를 확정 |
 
 ### P0: AIMET encoding 수준 분석
 
@@ -136,6 +137,8 @@ scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id T -
 | `reports/encoding_analysis.md` | AIMET `.encodings` group/bitwidth/scale 분석 |
 | `reports/activation_encoding_interventions.md` | selected activation encoding intervention sample100 screening |
 | `reports/activation_encoding_interventions_sample500.md` | selected activation encoding intervention sample500 재확인 |
+| `reports/head_group_mixed_precision.md` | head group selective A16 sample100 screening |
+| `reports/head_group_mixed_precision_sample500.md` | head group selective A16 sample500 재확인 |
 | `reports/head_cv3_layer_sensitivity.md` | `cv3` per-layer sample100 전체 민감도 |
 | `reports/head_cv3_layer_sensitivity_sample500.md` | `cv3` per-layer top3 sample500 재확인 |
 | `reports/research_roadmap.md` | 완료된 실험과 후속 검증 큐 |
