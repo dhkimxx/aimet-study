@@ -278,6 +278,37 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 
 sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보였습니다. `scale2`와 final output은 개선폭이 작아졌고, final output만으로는 A8W8 손실을 거의 설명하지 못합니다. 따라서 다음 후보는 final output 단독보다 head `cv3` branch와 더 넓은 head Conv output 범위입니다.
 
+## Head cv3 per-layer 민감도
+
+`head_cv3_outputs` 15개 전체가 sample500에서 가장 강한 head 후보였으므로, 같은 A8W8 QDQ 모델에서 `cv3` Conv output activation QDQ를 하나씩 제거했습니다. 이 실험은 weight QDQ를 그대로 유지하고, 선택한 activation QDQ 1쌍만 float로 되돌립니다.
+
+실행 명령:
+
+```bash
+scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 100 --force
+scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 500 --force --variant cv3_s1_2_final --variant cv3_s0_0_0 --variant cv3_s2_1_1 --output-csv results/head_cv3_layer_sensitivity_sample500.csv --output-json results/head_cv3_layer_sensitivity_sample500.json --output-md reports/head_cv3_layer_sensitivity_sample500.md
+```
+
+sample100 전체 15개 중 상위 결과:
+
+| Rank | Variant | Scale | Layer | mAP50-95 | A8W8 대비 | Enc scale | Enc range |
+| ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | cv3_s1_2_final | 1 | 2_final | 0.5268 | +0.0094 | 0.66714984 | 170.12321 |
+| 2 | cv3_s0_0_0 | 0 | 0_0 | 0.5250 | +0.0076 | 0.06258772 | 15.95987 |
+| 3 | cv3_s2_1_1 | 2 | 1_1 | 0.5199 | +0.0025 | 0.63858593 | 162.83941 |
+| 4 | cv3_s0_2_final | 0 | 2_final | 0.5198 | +0.0023 | 0.12028932 | 30.67378 |
+| 5 | cv3_s1_0_0 | 1 | 0_0 | 0.5188 | +0.0013 | 0.10823258 | 27.59931 |
+
+sample500 top3 재확인:
+
+| Variant | Scale | Layer | mAP50-95 | A8W8 대비 | Enc scale | Enc range | 판정 |
+| --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| cv3_s1_2_final | 1 | 2_final | 0.4047 | +0.0036 | 0.66714984 | 170.12321 | 가장 안정적인 단일 후보 |
+| cv3_s2_1_1 | 2 | 1_1 | 0.3992 | -0.0020 | 0.63858593 | 162.83941 | sample100 개선이 유지되지 않음 |
+| cv3_s0_0_0 | 0 | 0_0 | 0.3958 | -0.0054 | 0.06258772 | 15.95987 | sample100 개선이 유지되지 않음 |
+
+해석: `head_cv3_outputs` 15개 전체 제거는 sample500에서 +0.0094였지만, 단일 tensor 기준으로는 `cv3_s1_2_final`만 +0.0036 회복이 유지됐습니다. `cv3_s0_0_0`은 sample100에서 +0.0076으로 강했지만 sample500에서는 -0.0054로 뒤집혔으므로, 작은 subset 우연 또는 다른 activation과의 상호작용 가능성이 큽니다. Encoding range만으로 민감도를 설명하기도 어렵습니다. `cv3_s1_2_final`과 `cv3_s2_1_1`은 비슷한 큰 range를 갖지만 sample500 delta 방향이 다르고, `cv3_s0_0_0`은 range가 작아도 sample100에서는 크게 움직였습니다.
+
 ## 산출물 해시
 
 | ID | 모델 SHA256 | 비고 |
@@ -302,7 +333,7 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 - AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. full 설정인 `calib256`, `adaround-samples 256`, `iterations 5000`, `sample500`은 0.4026으로 A8W8보다 +0.0014, 중간 AdaRound보다 -0.0011입니다. 두 AdaRound 결과 모두 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Encoding 분석 기준으로 A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꿔 quantization step을 크게 줄입니다. A8W16은 parameter encoding만 16비트라 activation 병목은 그대로 남습니다.
-- YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. final output만이 아니라 head 중간 Conv activation도 함께 영향을 줍니다.
+- YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. `cv3` 내부 per-layer 재확인에서는 `cv3_s1_2_final`만 sample500에서도 양수 회복이 유지되어, final output만이 아니라 class branch 내부 특정 activation이 함께 영향을 줍니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 - G는 ORT QOperator Conv-only라 Conv weight storage가 실제 int8로 접혔지만 AIMET 결과가 아닙니다. packed storage와 작은 파일 크기는 얻었으나, sample500 정확도와 ORT CUDA latency가 모두 AIMET A8W8 QDQ보다 나빠 현재 배포 후보로 채택하지 않습니다.
@@ -311,6 +342,6 @@ sample500에서도 `head_cv3_outputs`가 세 후보 중 가장 큰 회복을 보
 ## 다음 실험
 
 1. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
-2. Head `cv3` branch와 wider head Conv output 범위에 대해 per-layer range, percentile, symmetric/asymmetric 설정 민감도를 확인합니다.
+2. `cv3_s1_2_final`과 wider head Conv output 범위에 대해 percentile, symmetric/asymmetric, per-channel 가능성을 확인합니다.
 3. AdaRound full 설정은 sample500에서 완료했으므로, 필요하면 같은 산출물을 full COCO val로 추가 평가해 subset 결론의 일반성을 확인합니다.
 4. Target runtime을 정한 뒤 TensorRT/QNN/EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.

@@ -54,6 +54,8 @@ aimet-yolo-ptq-study/
   reports/
     aimet_ptq_study.md
     encoding_analysis.md
+    head_cv3_layer_sensitivity.md
+    head_cv3_layer_sensitivity_sample500.md
     paper_report.md
     research_roadmap.md
   results/
@@ -74,6 +76,7 @@ aimet-yolo-ptq-study/
     11_generate_report_figures.py
     12_eval_ort_qoperator_int8.py
     17_analyze_encodings.py
+    18_head_cv3_layer_sensitivity.py
   src/
     aimet_yolo_study/
 ```
@@ -101,7 +104,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
-논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
+논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, head `cv3` 내부 per-layer 결과는 `reports/head_cv3_layer_sensitivity.md`와 `reports/head_cv3_layer_sensitivity_sample500.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
 현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, AdaRound full 설정 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
@@ -256,6 +259,13 @@ sample500 확대 검증에서는 우선 후보만 다시 확인합니다.
 
 ```bash
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 500 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
+```
+
+`head_cv3_outputs` 15개 내부에서는 activation QDQ를 하나씩 제거해 per-layer 민감도를 확인합니다. 기본 리포트는 sample100 전체 15개를 평가하고, sample500은 sample100 상위 후보를 재확인합니다.
+
+```bash
+scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 100 --force
+scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 500 --force --variant cv3_s1_2_final --variant cv3_s0_0_0 --variant cv3_s2_1_1 --output-csv results/head_cv3_layer_sensitivity_sample500.csv --output-json results/head_cv3_layer_sensitivity_sample500.json --output-md reports/head_cv3_layer_sensitivity_sample500.md
 ```
 
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.

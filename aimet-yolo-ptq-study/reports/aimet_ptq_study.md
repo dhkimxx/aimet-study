@@ -196,6 +196,7 @@ TensorRT EP preflight도 수행했습니다. ONNX Runtime provider 목록에는 
 - Encoding 분석 기준으로 A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꿔 quantization step을 크게 줄입니다. 이 결과는 activation 쪽이 더 민감하다는 정확도 결과와 맞습니다.
 - Activation QDQ 민감도 실험에서는 head Conv output과 전체 activation 제거가 큰 회복폭을 보였습니다. `all_activations` 변형은 weight QDQ만 유지한 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Head 세분화에서는 sample100에서 `cv3` branch와 `scale2` 출력이 상대적으로 더 민감했고, sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다.
+- `cv3` 내부 per-layer 민감도에서는 sample100 전체 15개 중 `cv3_s1_2_final`(+0.0094), `cv3_s0_0_0`(+0.0076), `cv3_s2_1_1`(+0.0025)이 상위였지만, sample500 top3 재확인에서는 `cv3_s1_2_final`만 +0.0036으로 양수 회복을 유지했습니다.
 - ORT QOperator Conv-only는 QLinearConv 102개와 Conv weight INT storage 102/102를 만들었지만, sample500 mAP50-95 0.3486 및 model-only 32.40ms로 AIMET A8W8 QDQ보다 나빴습니다.
 - Latency 측정에서는 FP32가 model-only 6.16ms로 가장 빨랐고, A8W8 QDQ는 14.77ms, 16비트 QDQ는 100ms 이상, ORT QOperator Conv-only는 32.40ms였습니다. 현재 AIMET QDQ 산출물은 accuracy/encoding 분석용으로 보고, 배포 효율은 TensorRT/QNN/target EP 친화 export 경로에서 별도 확인해야 합니다.
 - TensorRT EP는 현재 `libnvinfer.so.10` 누락으로 실제 측정하지 못했습니다. 이는 AIMET HW-independent 결론의 필수 조건은 아니며, provider fallback guard는 추가했습니다.
