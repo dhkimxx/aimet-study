@@ -309,6 +309,39 @@ sample500 top3 재확인:
 
 해석: `head_cv3_outputs` 15개 전체 제거는 sample500에서 +0.0094였지만, 단일 tensor 기준으로는 `cv3_s1_2_final`만 +0.0036 회복이 유지됐습니다. `cv3_s0_0_0`은 sample100에서 +0.0076으로 강했지만 sample500에서는 -0.0054로 뒤집혔으므로, 작은 subset 우연 또는 다른 activation과의 상호작용 가능성이 큽니다. Encoding range만으로 민감도를 설명하기도 어렵습니다. `cv3_s1_2_final`과 `cv3_s2_1_1`은 비슷한 큰 range를 갖지만 sample500 delta 방향이 다르고, `cv3_s0_0_0`은 range가 작아도 sample100에서는 크게 움직였습니다.
 
+## Activation encoding intervention
+
+QDQ를 float로 제거하는 ablation만으로는 실제 AIMET 설정 후보를 말하기 어렵기 때문에, 선택한 activation QDQ의 scale/zero-point만 바꾸는 intervention을 추가했습니다. `a16_preserve_range`는 기존 min/max를 유지하면서 selected activation만 uint16 QDQ로 바꿉니다. `symmetric_i8`은 selected activation을 signed symmetric int8로 바꾸고, `scale_factor`와 `percentile_uint8`은 range clipping/expansion 효과를 봅니다.
+
+실행 명령:
+
+```bash
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 100 --force --variant cv3_s1_2_final_a16 --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_scale075 --variant cv3_s1_2_final_scale050 --variant cv3_s1_2_final_scale125 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_p999
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 500 --force --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_a16 --output-csv results/activation_encoding_interventions_sample500.csv --output-json results/activation_encoding_interventions_sample500.json --output-md reports/activation_encoding_interventions_sample500.md
+```
+
+sample100 screening:
+
+| Variant | Target | Method | QDQ | mAP50-95 | A8W8 대비 |
+| --- | --- | --- | ---: | ---: | ---: |
+| head_cv3_outputs_a16 | head_cv3_outputs | A16 preserve range | 15 | 0.5267 | +0.0092 |
+| cv3_s1_2_final_symmetric_i8 | cv3_s1_2_final | symmetric int8 | 1 | 0.5233 | +0.0059 |
+| cv3_s1_2_final_a16 | cv3_s1_2_final | A16 preserve range | 1 | 0.5198 | +0.0023 |
+| cv3_s1_2_final_scale075 | cv3_s1_2_final | scale x0.75 | 1 | 0.5192 | +0.0018 |
+| cv3_s1_2_final_scale125 | cv3_s1_2_final | scale x1.25 | 1 | 0.5145 | -0.0029 |
+| cv3_s1_2_final_scale050 | cv3_s1_2_final | scale x0.50 | 1 | 0.5129 | -0.0045 |
+| cv3_s1_2_final_p999 | cv3_s1_2_final | p0.1-p99.9 uint8 | 1 | 0.5093 | -0.0081 |
+
+sample500 재확인:
+
+| Variant | Target | Method | QDQ | mAP50-95 | A8W8 대비 | 해석 |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| head_cv3_outputs_a16 | head_cv3_outputs | A16 preserve range | 15 | 0.4064 | +0.0052 | group step size 병목 신호 |
+| cv3_s1_2_final_symmetric_i8 | cv3_s1_2_final | symmetric int8 | 1 | 0.4030 | +0.0019 | 단일 tensor range 정책은 일부만 회복 |
+| cv3_s1_2_final_a16 | cv3_s1_2_final | A16 preserve range | 1 | 0.4006 | -0.0005 | 단일 tensor bitwidth만으로는 불충분 |
+
+해석: sample500에서 `head_cv3_outputs_a16`은 A8W8 0.4012보다 +0.0052 높아, `cv3` group 전체의 activation quantization step size가 실제 병목 중 하나라는 신호를 줍니다. 하지만 `head_cv3_outputs`를 float로 제거한 0.4105(+0.0094)에는 못 미치므로 bitwidth만 올려도 모든 오차가 사라지는 것은 아닙니다. 단일 `cv3_s1_2_final`은 float 제거 때 +0.0036이었지만, A16 preserve-range는 sample500에서 -0.0005로 유지되지 않았고 symmetric int8만 +0.0019였습니다. 따라서 단일 tensor 하나보다 `cv3` group의 누적 activation encoding 문제가 더 근본 원인에 가깝습니다.
+
 ## 산출물 해시
 
 | ID | 모델 SHA256 | 비고 |
@@ -333,7 +366,7 @@ sample500 top3 재확인:
 - AdaRound smoke는 `adaround-samples 8`, `iterations 50` 설정에서 API와 export 경로를 확인한 값입니다. 더 강한 중간 설정인 `calib256`, `adaround-samples 128`, `iterations 2000`, `sample500`에서는 mAP50-95 0.4036으로 A8W8 QuantSim보다 +0.0025 높았습니다. full 설정인 `calib256`, `adaround-samples 256`, `iterations 5000`, `sample500`은 0.4026으로 A8W8보다 +0.0014, 중간 AdaRound보다 -0.0011입니다. 두 AdaRound 결과 모두 16비트 activation 쪽 회복폭보다 작아, 현재 주된 병목이 weight rounding만은 아니라는 해석을 강화합니다.
 - 16비트 조합과 activation QDQ 제거 실험을 같이 보면, 현재 정확도 손실은 weight보다 activation 쪽이 더 큽니다. full COCO에서도 A16W8이 A8W16보다 높고, sample100의 `all_activations` float 변형은 weight QDQ만 남긴 상태로 A16W8과 거의 같은 mAP까지 회복했습니다.
 - Encoding 분석 기준으로 A8W8/AdaRound는 QDQ-exported activation 295개가 모두 8비트이고, A16W8/A16W16은 같은 295개 activation을 16비트로 바꿔 quantization step을 크게 줄입니다. A8W16은 parameter encoding만 16비트라 activation 병목은 그대로 남습니다.
-- YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. `cv3` 내부 per-layer 재확인에서는 `cv3_s1_2_final`만 sample500에서도 양수 회복이 유지되어, final output만이 아니라 class branch 내부 특정 activation이 함께 영향을 줍니다.
+- YOLO head 세분화에서는 sample100 기준 `cv3` branch와 `scale2` 쪽 activation이 상대적으로 더 민감했습니다. sample500에서는 `cv3`가 세 후보 중 가장 일관된 회복을 보였습니다. `cv3` 내부 per-layer 재확인에서는 `cv3_s1_2_final`만 sample500에서도 양수 회복이 유지됐지만, encoding intervention에서는 단일 A16보다 `head_cv3_outputs` group A16이 더 안정적으로 회복했습니다. 즉 final output 하나보다 class branch 전체 activation step/range 문제가 더 큽니다.
 - 현재 QDQ export는 YOLO detection postprocess 영역의 비-Conv 텐서와 최종 `output0` QDQ를 제외합니다. postprocess까지 양자화하면 sample20 기준 mAP가 0으로 떨어졌기 때문입니다.
 - B와 C/D/E는 양자화 수준이 다릅니다. B는 input/output/postprocess까지 더 공격적으로 양자화하고 weight storage도 int8이지만 정확도가 붕괴했습니다. C/D/E는 postprocess/output을 float로 남기고 weight도 QDQ 경로만 거치는 accuracy-eval 모델이라 정확도는 유지되지만 파일 크기/배포 효율 비교에는 아직 직접 쓰면 안 됩니다.
 - G는 ORT QOperator Conv-only라 Conv weight storage가 실제 int8로 접혔지만 AIMET 결과가 아닙니다. packed storage와 작은 파일 크기는 얻었으나, sample500 정확도와 ORT CUDA latency가 모두 AIMET A8W8 QDQ보다 나빠 현재 배포 후보로 채택하지 않습니다.
@@ -342,6 +375,6 @@ sample500 top3 재확인:
 ## 다음 실험
 
 1. YOLO head/postprocess 제외 정책을 더 명시적으로 설정하거나, postprocess 없는 raw-head ONNX export로 다시 비교합니다.
-2. `cv3_s1_2_final`과 wider head Conv output 범위에 대해 percentile, symmetric/asymmetric, per-channel 가능성을 확인합니다.
+2. `head_cv3_outputs` group에 대해 selective mixed precision, symmetric/asymmetric, per-channel 가능성을 확인합니다.
 3. AdaRound full 설정은 sample500에서 완료했으므로, 필요하면 같은 산출물을 full COCO val로 추가 평가해 subset 결론의 일반성을 확인합니다.
 4. Target runtime을 정한 뒤 TensorRT/QNN/EP 친화 export처럼 실제 deployment runtime에서 packed INT8이 latency 이득으로 이어지는지 확인합니다.

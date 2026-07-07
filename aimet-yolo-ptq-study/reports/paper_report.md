@@ -162,6 +162,18 @@ sample500에서는 세 후보만 재평가했다.
 
 따라서 `cv3` 전체 회복은 단일 tensor 하나로 완전히 설명되기보다 여러 activation 오차의 누적 효과로 보는 편이 맞다. 다만 단일 후보 중에서는 class branch scale1 final Conv output인 `cv3_s1_2_final`이 다음 encoding/range 실험의 1순위다.
 
+QDQ 제거가 아니라 encoding 자체를 바꾸는 intervention도 수행했다. sample100에서는 `head_cv3_outputs` 15개를 A16 preserve-range로 바꾼 변형이 0.5267(+0.0092)로 가장 높았고, 단일 `cv3_s1_2_final` symmetric int8은 0.5233(+0.0059), 단일 A16은 0.5198(+0.0023)이었다. 단순 range clipping은 불안정했다. 특히 p0.1-p99.9 percentile uint8은 range를 -170.1..0에서 -69.2..0으로 줄이며 0.5093(-0.0081)까지 떨어졌다.
+
+sample500에서는 상위 3개만 재확인했다.
+
+| 변형 | intervention | sample500 mAP50-95 | sample500 delta | 해석 |
+| --- | --- | ---: | ---: | --- |
+| head_cv3_outputs_a16 | 15개 cv3 activation만 uint16 QDQ | 0.4064 | +0.0052 | group step size 병목 신호 |
+| cv3_s1_2_final_symmetric_i8 | 단일 activation signed symmetric int8 | 0.4030 | +0.0019 | 단일 range 정책 일부 회복 |
+| cv3_s1_2_final_a16 | 단일 activation만 uint16 QDQ | 0.4006 | -0.0005 | 단일 tensor bitwidth만으로는 불충분 |
+
+이 결과는 `cv3_s1_2_final` 하나가 모든 원인이라는 해석을 약화한다. 오히려 `head_cv3_outputs` 전체의 누적 activation quantization step/range가 더 직접적인 원인이다. A16 group intervention은 `head_cv3_outputs` float ablation의 +0.0094 중 약 절반을 회복하지만, float ablation만큼은 아니므로 bitwidth, range, upstream activation quantization이 함께 작용한다고 보는 것이 맞다.
+
 ## Latency Results
 
 | 실험 | 설정 | model-only mean ms | model-only p95 ms | end-to-end mean ms | end-to-end p95 ms |
@@ -213,7 +225,7 @@ Figure 4. Conv quantization coverage and initializer storage are different quant
 
 Naive INT8이 mAP 0으로 붕괴한 원인은 단순히 8비트라서가 아니라 양자화 범위가 다르기 때문이다. Naive 모델은 graph output과 postprocess까지 양자화하고 weight storage까지 int8로 접는다. 반면 AIMET QDQ 모델은 postprocess와 최종 output을 float로 유지하고 Conv weight는 QDQ 경로를 거치지만 initializer storage는 FP32다.
 
-A8W8 AIMET QDQ의 정확도 손실은 주로 activation 쪽에서 발생한다. Calibration sample을 1024장으로 늘려도 A8W8은 full COCO에서 +0.0047만 회복했다. CLE calib1024는 0.3788로 QuantSim calib1024 0.3787과 사실상 동일했고, 이 ONNX는 BatchNorm이 없어 AIMET 로그가 high-bias folding 미지원을 명시했다. AdaRound 중간 설정은 sample500에서 A8W8보다 +0.0025, full 설정은 +0.0014만 높아 weight rounding 최적화의 단독 효과가 제한적이었다. 반면 A16W8은 full COCO에서 A8W8 calib64보다 +0.0182, A8W8 calib1024보다 +0.0135, A8W16보다 +0.0080 mAP50-95 높았다. sample100의 all-activation-float ablation은 weight QDQ만 남긴 상태에서도 A16W8과 거의 같은 mAP를 보였다. 특히 YOLO head Conv output 24개만 float로 되돌려도 큰 회복이 있어 head activation encoding이 다음 최적화 대상이다. Head 내부에서는 sample500 기준 `cv3` branch가 가장 강한 group 후보이고, 단일 tensor로는 `cv3_s1_2_final`이 가장 안정적인 후보이다.
+A8W8 AIMET QDQ의 정확도 손실은 주로 activation 쪽에서 발생한다. Calibration sample을 1024장으로 늘려도 A8W8은 full COCO에서 +0.0047만 회복했다. CLE calib1024는 0.3788로 QuantSim calib1024 0.3787과 사실상 동일했고, 이 ONNX는 BatchNorm이 없어 AIMET 로그가 high-bias folding 미지원을 명시했다. AdaRound 중간 설정은 sample500에서 A8W8보다 +0.0025, full 설정은 +0.0014만 높아 weight rounding 최적화의 단독 효과가 제한적이었다. 반면 A16W8은 full COCO에서 A8W8 calib64보다 +0.0182, A8W8 calib1024보다 +0.0135, A8W16보다 +0.0080 mAP50-95 높았다. sample100의 all-activation-float ablation은 weight QDQ만 남긴 상태에서도 A16W8과 거의 같은 mAP를 보였다. 특히 YOLO head Conv output 24개만 float로 되돌려도 큰 회복이 있어 head activation encoding이 다음 최적화 대상이다. Head 내부에서는 sample500 기준 `cv3` branch가 가장 강한 group 후보이고, encoding intervention도 `head_cv3_outputs` group A16이 단일 tensor intervention보다 안정적으로 회복한다.
 
 Runtime 관점에서는 정확도와 배포 효율이 분리된다. AIMET QDQ와 `.encodings` 분석은 HW-independent PTQ 민감도와 encoding 품질을 보는 데 유효하지만, target runtime에서 packed INT kernel로 얼마나 접히는지는 별도 문제다. ORT QOperator Conv-only는 packed INT8 storage 자체는 만들었지만, CUDAExecutionProvider에서는 정확도와 latency가 모두 불리했다. TensorRT EP는 현재 환경에서 `libnvinfer.so.10` 누락으로 로드되지 않았다. 최종 배포 주장은 TensorRT, QNN, 또는 ORT의 EP 친화 quantized operator 변환처럼 실제 타깃 runtime에 맞는 export를 따로 검증해야 한다.
 
@@ -259,6 +271,8 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --batch 1 --eval-samples 500 --variant head_cv3_outputs --variant head_scale2_outputs --variant head_final_outputs --force
 scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 100 --force
 scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 500 --force --variant cv3_s1_2_final --variant cv3_s0_0_0 --variant cv3_s2_1_1 --output-csv results/head_cv3_layer_sensitivity_sample500.csv --output-json results/head_cv3_layer_sensitivity_sample500.json --output-md reports/head_cv3_layer_sensitivity_sample500.md
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 100 --force --variant cv3_s1_2_final_a16 --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_scale075 --variant cv3_s1_2_final_scale050 --variant cv3_s1_2_final_scale125 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_p999
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 500 --force --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_a16 --output-csv results/activation_encoding_interventions_sample500.csv --output-json results/activation_encoding_interventions_sample500.json --output-md reports/activation_encoding_interventions_sample500.md
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id C --experiment-name aimet_quantsim_a8w8_qdq_latency --model results/models/yolo26n_pretrained.aimet_quantsim_int8_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
 scripts/run_native.sh python scripts/12_eval_ort_qoperator_int8.py --device 0 --batch 1 --calibration-samples 64 --eval-samples 500 --name ort_qoperator_conv_int8
 scripts/run_native.sh python scripts/08_benchmark_latency.py --experiment-id G --experiment-name ort_qoperator_conv_int8_latency --model results/models/yolo26n_pretrained.ort_qoperator_int8_conv_calib64.onnx --device 0 --warmup-runs 20 --measured-runs 100
@@ -272,7 +286,7 @@ scripts/run_native.sh python scripts/11_generate_report_figures.py
 | 우선순위 | 작업 | 완료 기준 |
 | --- | --- | --- |
 | P0 | full COCO val로 주요 정확도 재평가 | FP32, naive INT8, A8W8, CLE calib1024, 16비트 후보 완료. AdaRound full 설정은 sample500 완료, full COCO 추가 평가는 선택 사항 |
-| P0 | Head activation 후보 확대 검증 | sample500에서 `cv3`, `scale2`, final outputs 완료. `cv3` per-layer sample100 및 top3 sample500 완료. 다음은 `cv3_s1_2_final` 중심 range/encoding 설정 |
+| P0 | Head activation 후보 확대 검증 | sample500에서 `cv3`, `scale2`, final outputs 완료. `cv3` per-layer와 encoding intervention 완료. 다음은 `head_cv3_outputs` group 중심 mixed precision/range 설정 |
 | P0 | AIMET encoding 수준 비교 | QDQ-exported activation 295개, sidecar-only activation 55개, A8/A16/W8/W16 scale/bitwidth 비교 완료 |
 | P1 | AdaRound full 설정 | detached runner로 완료. sample500 0.4026, A8W8 대비 +0.0014, 중간 AdaRound 대비 -0.0011 |
 | P1 | Runtime 타깃 분리 | ORT CUDA QDQ, ORT QOperator Conv-only probe, TensorRT EP preflight 완료. TensorRT/QNN 실제 측정은 AIMET HW-independent 결론 밖의 배포 후속 |

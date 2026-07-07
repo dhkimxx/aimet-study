@@ -52,6 +52,8 @@ aimet-yolo-ptq-study/
   models/
     README.md
   reports/
+    activation_encoding_interventions.md
+    activation_encoding_interventions_sample500.md
     aimet_ptq_study.md
     encoding_analysis.md
     head_cv3_layer_sensitivity.md
@@ -77,6 +79,7 @@ aimet-yolo-ptq-study/
     12_eval_ort_qoperator_int8.py
     17_analyze_encodings.py
     18_head_cv3_layer_sensitivity.py
+    19_activation_encoding_intervention.py
   src/
     aimet_yolo_study/
 ```
@@ -104,7 +107,7 @@ AIMET ONNX 2.2.0 GPU wheel은 Python 3.10 전용입니다. 이 프로젝트는 `
 
 네이티브 환경 상세는 `docs/native_uv.md`를 참고합니다.
 
-논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, head `cv3` 내부 per-layer 결과는 `reports/head_cv3_layer_sensitivity.md`와 `reports/head_cv3_layer_sensitivity_sample500.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
+논문형 리포트는 `reports/paper_report.md`, AIMET `.encodings` 분석은 `reports/encoding_analysis.md`, head `cv3` 내부 per-layer 결과는 `reports/head_cv3_layer_sensitivity.md`와 `reports/head_cv3_layer_sensitivity_sample500.md`, selected activation encoding intervention 결과는 `reports/activation_encoding_interventions.md`와 `reports/activation_encoding_interventions_sample500.md`, 완료된 실험과 후속 검증 큐는 `reports/research_roadmap.md`에 정리합니다.
 현재 리포트는 sample100 탐색 결과, sample500 확대 검증 결과, AdaRound full 설정 결과, full COCO val 핵심 결과를 함께 기록합니다.
 
 ## 스터디 진행 순서
@@ -266,6 +269,13 @@ scripts/run_native.sh python scripts/10_activation_sensitivity.py --device 0 --b
 ```bash
 scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 100 --force
 scripts/run_native.sh python scripts/18_head_cv3_layer_sensitivity.py --device 0 --batch 1 --eval-samples 500 --force --variant cv3_s1_2_final --variant cv3_s0_0_0 --variant cv3_s2_1_1 --output-csv results/head_cv3_layer_sensitivity_sample500.csv --output-json results/head_cv3_layer_sensitivity_sample500.json --output-md reports/head_cv3_layer_sensitivity_sample500.md
+```
+
+선택한 activation QDQ를 제거하지 않고 scale/zero-point만 바꾸는 intervention도 확인합니다. 이 실험은 AIMET HW-independent encoding 원인 분석이며, selected uint16 QDQ 모델도 packed deployment artifact가 아닙니다.
+
+```bash
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 100 --force --variant cv3_s1_2_final_a16 --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_scale075 --variant cv3_s1_2_final_scale050 --variant cv3_s1_2_final_scale125 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_p999
+scripts/run_native.sh python scripts/19_activation_encoding_intervention.py --device 0 --batch 1 --eval-samples 500 --force --variant head_cv3_outputs_a16 --variant cv3_s1_2_final_symmetric_i8 --variant cv3_s1_2_final_a16 --output-csv results/activation_encoding_interventions_sample500.csv --output-json results/activation_encoding_interventions_sample500.json --output-md reports/activation_encoding_interventions_sample500.md
 ```
 
 내보낸 ONNX 모델의 레이턴시를 벤치마크합니다.
